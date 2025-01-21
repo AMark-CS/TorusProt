@@ -25,12 +25,14 @@ dependencies:
       - hydra-core
       - hydra-joblib-launcher
       - ipdb
+      - jupyterlab
       - lightning
       - lmdb
       - ml-collections
       - numpy
       - pandas
       - pot
+      - plotly
       - pytest
       - tmtools
       - tqdm
