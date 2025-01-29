@@ -1,4 +1,5 @@
 """Copyright (c) Dreamfold."""
+
 import torch
 from foldflow.utils.so3_helpers import tangent_space_proj
 from einops import rearrange
@@ -65,6 +66,7 @@ class GradModel(torch.nn.Module):
 # MLP with tangential projection of the output to the tangent space of the input
 class PMLP(torch.nn.Module):
     def __init__(self, dim, out_dim=None, w=64, time_varying=False):
+        torch.set_default_dtype(torch.float64)
         super().__init__()
         self.time_varying = time_varying
         if out_dim is None:

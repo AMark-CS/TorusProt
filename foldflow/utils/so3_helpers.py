@@ -155,18 +155,10 @@ def rotmat_to_quat(matrix):
     j = (i + 1) % 3
     k = (j + 1) % 3
 
-    quat[not_three_mask, i] = (
-        1 - decision[not_three_mask, 3] + 2 * matrix[not_three_mask, i, i]
-    )
-    quat[not_three_mask, j] = (
-        matrix[not_three_mask, j, i] + matrix[not_three_mask, i, j]
-    )
-    quat[not_three_mask, k] = (
-        matrix[not_three_mask, k, i] + matrix[not_three_mask, i, k]
-    )
-    quat[not_three_mask, 3] = (
-        matrix[not_three_mask, k, j] - matrix[not_three_mask, j, k]
-    )
+    quat[not_three_mask, i] = 1 - decision[not_three_mask, 3] + 2 * matrix[not_three_mask, i, i]
+    quat[not_three_mask, j] = matrix[not_three_mask, j, i] + matrix[not_three_mask, i, j]
+    quat[not_three_mask, k] = matrix[not_three_mask, k, i] + matrix[not_three_mask, i, k]
+    quat[not_three_mask, 3] = matrix[not_three_mask, k, j] - matrix[not_three_mask, j, k]
 
     # Indices where choice is 3
     three_mask = ~not_three_mask
@@ -275,9 +267,6 @@ def _so3_exp_map(
 def so3_relative_angle(
     R1: torch.Tensor,
     R2: torch.Tensor,
-    cos_angle: bool = False,
-    cos_bound: float = 1e-4,
-    eps: float = 1e-4,
 ) -> torch.Tensor:
     """
     Calculates the relative angle (in radians) between pairs of
@@ -290,18 +279,8 @@ def so3_relative_angle(
     Args:
         R1: Batch of rotation matrices of shape `(minibatch, 3, 3)`.
         R2: Batch of rotation matrices of shape `(minibatch, 3, 3)`.
-        cos_angle: If==True return cosine of the relative angle rather than
-            the angle itself. This can avoid the unstable calculation of `acos`.
-        cos_bound: Clamps the cosine of the relative rotation angle to
-            [-1 + cos_bound, 1 - cos_bound] to avoid non-finite outputs/gradients
-            of the `acos` call. Note that the non-finite outputs/gradients
-            are returned when the angle is requested (i.e. `cos_angle==False`)
-            and the rotation angle is close to 0 or π.
-        eps: Tolerance for the valid trace check of the relative rotation matrix
-            in `so3_rotation_angle`.
     Returns:
         Corresponding rotation angles of shape `(minibatch,)`.
-        If `cos_angle==True`, returns the cosine of the angles.
 
     Raises:
         ValueError if `R1` or `R2` is of incorrect shape.
@@ -347,7 +326,7 @@ def hat_inv(h: torch.Tensor) -> torch.Tensor:
     return v
 
 
-# Parallel Transport a matrix at v at point R to the Tangent Space at identity
+# Parallel Transport a matrix v at point R to the Tangent Space at identity
 def pt_to_identity(R, v):
     return torch.transpose(R, dim0=-2, dim1=-1) @ v
 
@@ -365,8 +344,9 @@ def so3_rotation_angle(
 
 def norm_SO3(R, T_R):
     # calulate the norm squared of matrix T_R in the tangent space of R
-    r = pt_to_identity(R, T_R)  # matrix r is in so(3)
-    norm = -torch.diagonal(r @ r, dim1=-2, dim2=-1).sum(dim=-1) / 2  # -trace(rTr)/2
+    r = pt_to_identity(R, T_R)  # matrix r is in so(3), in the tangent space at identity, so it's skew-symmetric
+    # trace(rTr)/2, where r^T = -r since r belongs to the Lie algebra
+    norm = -torch.diagonal(r @ r, dim1=-2, dim2=-1).sum(dim=-1) / 2
     return norm
 
 
