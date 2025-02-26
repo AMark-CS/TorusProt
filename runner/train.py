@@ -1,5 +1,8 @@
 """Pytorch script for training FoldFlow."""
+
 import os
+
+import wandb.util
 
 # This line magically changes some tensors to double precision
 # so we need to reset the default dtype later.
@@ -38,7 +41,7 @@ class Experiment:
         self,
         *,
         conf: DictConfig,
-        model = None,
+        model=None,
     ):
         """Initialize experiment.
 
@@ -47,9 +50,7 @@ class Experiment:
         """
         self.first_batch = None
         self._log = logging.getLogger(__name__)
-        self._available_gpus = "".join(
-            [str(x) for x in GPUtil.getAvailable(order="memory", limit=8)]
-        )
+        self._available_gpus = "".join([str(x) for x in GPUtil.getAvailable(order="memory", limit=8)])
 
         # Configs
         self._conf = conf
@@ -78,9 +79,7 @@ class Experiment:
             from lightning.fabric.strategies import DDPStrategy
 
             strategy = DDPStrategy(find_unused_parameters=False)
-            self.fabric = Fabric(
-                accelerator="cuda", devices=self._exp_conf.num_gpus, strategy=strategy
-            )
+            self.fabric = Fabric(accelerator="cuda", devices=self._exp_conf.num_gpus, strategy=strategy)
             self.fabric.launch()
 
             torch.backends.cuda.matmul.allow_tf32 = True
@@ -93,9 +92,7 @@ class Experiment:
             self.ddp_info = eu.get_ddp_info()
             self._master_proc = self.fabric.global_rank == 0
             self._global_rank = self.fabric.global_rank
-            print(
-                f"RANK: {self.fabric.global_rank} | master process: {self._master_proc}"
-            )
+            print(f"RANK: {self.fabric.global_rank} | master process: {self._master_proc}")
 
             if self.fabric.global_rank != 0:
                 self._log.addHandler(logging.NullHandler())
@@ -115,18 +112,13 @@ class Experiment:
             self._model = network.VectorFieldNetwork(self._model_conf, self.flow_matcher)
             if ckpt_model is not None:
                 ckpt_model = {k.replace("module.", ""): v for k, v in ckpt_model.items()}
-                ckpt_model = {
-                    k.replace("score_model.", "vectorfield."): v
-                    for k, v in ckpt_model.items()
-                }
+                ckpt_model = {k.replace("score_model.", "vectorfield."): v for k, v in ckpt_model.items()}
                 self._model.load_state_dict(ckpt_model, strict=True)
 
             num_parameters = sum(p.numel() for p in self._model.parameters())
             self._exp_conf.num_parameters = num_parameters
             self._log.info(f"Number of model parameters {num_parameters}")
-            self._optimizer = torch.optim.Adam(
-                self._model.parameters(), lr=self._exp_conf.learning_rate
-            )
+            self._optimizer = torch.optim.Adam(self._model.parameters(), lr=self._exp_conf.learning_rate)
             if ckpt_opt is not None:
                 self._optimizer.load_state_dict(ckpt_opt)
                 if conf.experiment.use_gpu:
@@ -291,9 +283,7 @@ class Experiment:
         )
 
         if self._exp_conf.use_ddp:
-            train_loader = self.fabric.setup_dataloaders(
-                train_loader, use_distributed_sampler=False
-            )
+            train_loader = self.fabric.setup_dataloaders(train_loader, use_distributed_sampler=False)
         return train_loader, valid_loader, train_sampler, valid_sampler
 
     def init_wandb(self):
@@ -301,6 +291,8 @@ class Experiment:
         conf_dict = OmegaConf.to_container(self._conf, resolve=True)
         if self._exp_conf.run_id is None:
             self._exp_conf.run_id = wandb.util.generate_id()
+        # Add randomness to the run name
+        self._exp_conf.name = f"{self._exp_conf.name}_{wandb.util.generate_id()[:2]}"
         wandb.init(
             project=self._wandb_conf.project,
             entity=self._wandb_conf.entity,
@@ -315,9 +307,7 @@ class Experiment:
             resume="auto" if self._exp_conf.warm_start is not None else None,
         )
         self._wandb_conf.dir = wandb.run.dir
-        self._log.info(
-            f"Wandb: run_id={self._exp_conf.run_id}, run_dir={self._wandb_conf.dir}"
-        )
+        self._log.info(f"Wandb: run_id={self._exp_conf.run_id}, run_dir={self._wandb_conf.dir}")
 
     def start_training(self, return_logs=False):
         # print(f"Start-training-"*10)
@@ -346,24 +336,17 @@ class Experiment:
             elif self._exp_conf.num_gpus > 1:
                 # DDP mode
                 if self._use_ddp:
-                    self._model, self._optimizer = self.fabric.setup(
-                        self._model, self._optimizer
-                    )
+                    self._model, self._optimizer = self.fabric.setup(self._model, self._optimizer)
                     device = self.fabric.device
                     self._log.info(f"Using device: {device}")
                 # DP mode
                 else:
-                    device_ids = [
-                        f"cuda:{i}"
-                        for i in self._available_gpus[: self._exp_conf.num_gpus]
-                    ]
+                    device_ids = [f"cuda:{i}" for i in self._available_gpus[: self._exp_conf.num_gpus]]
                     if len(self._available_gpus) > self._exp_conf.num_gpus:
                         raise ValueError(
                             f"require {self._exp_conf.num_gpus} GPUs, but only {len(self._available_gpus)} GPUs available "
                         )
-                    self._log.info(
-                        f"Multi-GPU training on GPUs in DP mode: {device_ids}"
-                    )
+                    self._log.info(f"Multi-GPU training on GPUs in DP mode: {device_ids}")
                     gpu_id = self._available_gpus[replica_id]
                     device = f"cuda:{gpu_id}"
                     self._model = DP(self._model, device_ids=device_ids)
@@ -388,9 +371,7 @@ class Experiment:
             if valid_sampler is not None:
                 valid_sampler.set_epoch(epoch)
             self.trained_epochs = epoch
-            epoch_log = self.train_epoch(
-                train_loader, valid_loader, device, return_logs=return_logs
-            )
+            epoch_log = self.train_epoch(train_loader, valid_loader, device, return_logs=return_logs)
             if return_logs:
                 logs.append(epoch_log)
 
@@ -419,6 +400,9 @@ class Experiment:
         self._optimizer.step()
         return loss, aux_data
 
+    def debug_visualize_proteins(sefl, eval_pdb_path, gt_pdb_path):
+        pass
+
     def train_epoch(self, train_loader, valid_loader, device, return_logs=False):
         log_lossses = defaultdict(list)
         global_logs = []
@@ -442,24 +426,13 @@ class Experiment:
             self.trained_steps += 1
 
             # Logging to terminal
-            if (
-                self.trained_steps == 1
-                or self.trained_steps % self._exp_conf.log_freq == 0
-            ):
+            if self.trained_steps == 1 or self.trained_steps % self._exp_conf.log_freq == 0:
                 elapsed_time = time.time() - log_time
                 log_time = time.time()
                 step_per_sec = self._exp_conf.log_freq / elapsed_time
                 rolling_losses = tree.map_structure(np.mean, log_lossses)
-                loss_log = " ".join(
-                    [
-                        f"{k}={v[0]:.4f}"
-                        for k, v in rolling_losses.items()
-                        if "batch" not in k
-                    ]
-                )
-                self._log.info(
-                    f"[{self.trained_steps}]: {loss_log}, steps/sec={step_per_sec:.5f}"
-                )
+                loss_log = " ".join([f"{k}={v[0]:.4f}" for k, v in rolling_losses.items() if "batch" not in k])
+                self._log.info(f"[{self.trained_steps}]: {loss_log}, steps/sec={step_per_sec:.5f}")
                 log_lossses = defaultdict(list)
             # Take checkpoint
             if ((self.trained_steps % self._exp_conf.ckpt_freq) == 0) or (
@@ -467,9 +440,7 @@ class Experiment:
             ):
                 if self._master_proc and self._exp_conf.full_ckpt_dir is not None:
                     self._log.info("Take checkpoint")
-                    ckpt_path = os.path.join(
-                        self._exp_conf.full_ckpt_dir, f"step_{self.trained_steps}.pth"
-                    )
+                    ckpt_path = os.path.join(self._exp_conf.full_ckpt_dir, f"step_{self.trained_steps}.pth")
                     du.write_checkpoint(
                         ckpt_path,
                         self.model.state_dict(),
@@ -488,14 +459,11 @@ class Experiment:
                 if self._master_proc:
                     # Run evaluation
                     start_time = time.time()
-                    eval_dir = os.path.join(
-                        self._exp_conf.eval_dir, f"step_{self.trained_steps}"
-                    )
+                    eval_dir = os.path.join(self._exp_conf.eval_dir, f"step_{self.trained_steps}")
                     os.makedirs(eval_dir, exist_ok=True)
 
                     self._log.info(
-                        f"Running evaluation at EP "
-                        f"{self.trained_epochs} step {self.trained_steps} in {eval_dir}"
+                        f"Running evaluation at EP " f"{self.trained_epochs} step {self.trained_steps} in {eval_dir}"
                     )
 
                     ckpt_metrics = self.eval_fn(
@@ -561,9 +529,7 @@ class Experiment:
                     wandb_logs["eval_time"] = eval_time
                     for metric_name in metrics.ALL_METRICS:
                         wandb_logs[metric_name] = ckpt_metrics[metric_name].mean()
-                    eval_table = wandb.Table(
-                        columns=ckpt_metrics.columns.to_list() + ["structure"]
-                    )
+                    eval_table = wandb.Table(columns=ckpt_metrics.columns.to_list() + ["structure"])
                     for _, row in ckpt_metrics.iterrows():
                         pdb_path = row["sample_path"]
                         row_metrics = row.to_list() + [wandb.Molecule(pdb_path)]
@@ -571,6 +537,8 @@ class Experiment:
                     wandb_logs["sample_metrics"] = eval_table
 
                 wandb.log(wandb_logs, step=self.trained_steps)
+
+            # Debug logging of a protein visualization + its prediction
 
             if torch.isnan(loss):
                 if self._use_wandb:
@@ -646,9 +614,7 @@ class Experiment:
                         flow_mask=unpad_flow_mask,
                     )
                 except ValueError as e:
-                    self._log.warning(
-                        f"Failed evaluation of length {num_res} sample {i}: {e}"
-                    )
+                    self._log.warning(f"Failed evaluation of length {num_res} sample {i}: {e}")
                     continue
                 sample_metrics["step"] = self.trained_steps
                 sample_metrics["num_res"] = num_res
@@ -680,17 +646,12 @@ class Experiment:
             loss: Final training loss scalar.
             aux_data: Additional logging data.
         """
-        if (
-            self._model_conf.embed.embed_self_conditioning
-            and self.trained_steps % 2 == 1
-        ):
+        if self._model_conf.embed.embed_self_conditioning and self.trained_steps % 2 == 1:
             # if self._model_conf.embed.embed_self_conditioning and random.random() > 0.5:
             with torch.no_grad():
                 batch = self._self_conditioning(batch)
 
-        _, gt_rot_u_t = self._flow_matcher._so3_fm.vectorfield(
-            batch["rot_vectorfield"], batch["rot_t"], batch["t"]
-        )
+        _, gt_rot_u_t = self._flow_matcher._so3_fm.vectorfield(batch["rot_vectorfield"], batch["rot_t"], batch["t"])
 
         model_out = self.model(batch)
         bb_mask = batch["res_mask"]
@@ -707,9 +668,7 @@ class Experiment:
         pred_trans_v_t = model_out["trans_vectorfield"] * flow_mask[..., None]
 
         # Translation vectorfield loss
-        trans_vectorfield_mse = (gt_trans_u_t - pred_trans_v_t) ** 2 * loss_mask[
-            ..., None
-        ]
+        trans_vectorfield_mse = (gt_trans_u_t - pred_trans_v_t) ** 2 * loss_mask[..., None]
         trans_vectorfield_loss = torch.sum(
             trans_vectorfield_mse / trans_vectorfield_scaling[:, None, None] ** 2,
             dim=(-1, -2),
@@ -718,13 +677,13 @@ class Experiment:
         # Translation x0 loss
         gt_trans_x0 = batch["rigids_0"][..., 4:] * self._exp_conf.coordinate_scaling
         pred_trans_x0 = model_out["rigids"][..., 4:] * self._exp_conf.coordinate_scaling
-        trans_x0_loss = torch.sum(
-            (gt_trans_x0 - pred_trans_x0) ** 2 * loss_mask[..., None], dim=(-1, -2)
-        ) / (loss_mask.sum(dim=-1) + 1e-10)
+        trans_x0_loss = torch.sum((gt_trans_x0 - pred_trans_x0) ** 2 * loss_mask[..., None], dim=(-1, -2)) / (
+            loss_mask.sum(dim=-1) + 1e-10
+        )
 
-        trans_loss = trans_vectorfield_loss * (
-            batch["t"] > self._exp_conf.trans_x0_threshold
-        ) + trans_x0_loss * (batch["t"] <= self._exp_conf.trans_x0_threshold)
+        trans_loss = trans_vectorfield_loss * (batch["t"] > self._exp_conf.trans_x0_threshold) + trans_x0_loss * (
+            batch["t"] <= self._exp_conf.trans_x0_threshold
+        )
         trans_loss *= self._exp_conf.trans_loss_weight
         trans_loss *= int(self._fm_conf.flow_trans)
 
@@ -760,15 +719,13 @@ class Experiment:
 
             # Separate loss on the axis
             axis_loss = (gt_rot_axis - pred_rot_axis) ** 2 * loss_mask[..., None]
-            axis_loss = torch.sum(axis_loss, dim=(-1, -2)) / (
-                loss_mask.sum(dim=-1) + 1e-10
-            )
+            axis_loss = torch.sum(axis_loss, dim=(-1, -2)) / (loss_mask.sum(dim=-1) + 1e-10)
 
             # Separate loss on the angle
             angle_loss = (gt_rot_angle - pred_rot_angle) ** 2 * loss_mask[..., None]
-            angle_loss = torch.sum(
-                angle_loss / rot_vectorfield_scaling[:, None, None] ** 2, dim=(-1, -2)
-            ) / (loss_mask.sum(dim=-1) + 1e-10)
+            angle_loss = torch.sum(angle_loss / rot_vectorfield_scaling[:, None, None] ** 2, dim=(-1, -2)) / (
+                loss_mask.sum(dim=-1) + 1e-10
+            )
             angle_loss *= self._exp_conf.rot_loss_weight
             angle_loss *= batch["t"] > self._exp_conf.rot_loss_t_threshold
             rot_loss = angle_loss + axis_loss
@@ -803,13 +760,9 @@ class Experiment:
 
         # Pairwise distance loss
         gt_flat_atoms = gt_atom37.reshape([batch_size, num_res * 5, 3])
-        gt_pair_dists = torch.linalg.norm(
-            gt_flat_atoms[:, :, None, :] - gt_flat_atoms[:, None, :, :], dim=-1
-        )
+        gt_pair_dists = torch.linalg.norm(gt_flat_atoms[:, :, None, :] - gt_flat_atoms[:, None, :, :], dim=-1)
         pred_flat_atoms = pred_atom37.reshape([batch_size, num_res * 5, 3])
-        pred_pair_dists = torch.linalg.norm(
-            pred_flat_atoms[:, :, None, :] - pred_flat_atoms[:, None, :, :], dim=-1
-        )
+        pred_pair_dists = torch.linalg.norm(pred_flat_atoms[:, :, None, :] - pred_flat_atoms[:, None, :, :], dim=-1)
 
         flat_loss_mask = torch.tile(loss_mask[:, :, None], (1, 1, 5))
         flat_loss_mask = flat_loss_mask.reshape([batch_size, num_res * 5])
@@ -824,9 +777,7 @@ class Experiment:
         proximity_mask = gt_pair_dists < 6
         pair_dist_mask = pair_dist_mask * proximity_mask
 
-        dist_mat_loss = torch.sum(
-            (gt_pair_dists - pred_pair_dists) ** 2 * pair_dist_mask, dim=(1, 2)
-        )
+        dist_mat_loss = torch.sum((gt_pair_dists - pred_pair_dists) ** 2 * pair_dist_mask, dim=(1, 2))
         dist_mat_loss /= torch.sum(pair_dist_mask, dim=(1, 2)) - num_res
         dist_mat_loss *= self._exp_conf.dist_mat_loss_weight
         dist_mat_loss *= batch["t"] < self._exp_conf.dist_mat_loss_t_filter
@@ -854,9 +805,7 @@ class Experiment:
 
         # Maintain a history of the past N number of steps.
         # Helpful for debugging.
-        self._aux_data_history.append(
-            {"aux_data": aux_data, "model_out": model_out, "batch": batch}
-        )
+        self._aux_data_history.append({"aux_data": aux_data, "model_out": model_out, "batch": batch})
 
         assert final_loss.shape == (batch_size,)
         assert batch_loss_mask.shape == (batch_size,)
@@ -924,9 +873,7 @@ class Experiment:
         all_bb_0_pred = []
         with torch.no_grad():
             if self._model_conf.embed.embed_self_conditioning and self_condition:
-                sample_feats = self._set_t_feats(
-                    sample_feats, reverse_steps[0], t_placeholder
-                )
+                sample_feats = self._set_t_feats(sample_feats, reverse_steps[0], t_placeholder)
                 sample_feats = self._self_conditioning(sample_feats)
             for t in reverse_steps:
 
@@ -957,15 +904,10 @@ class Experiment:
                 # Calculate x0 prediction derived from vectorfield predictions.
                 gt_trans_0 = sample_feats["rigids_t"][..., 4:]
                 pred_trans_0 = rigid_pred[..., 4:]
-                trans_pred_0 = (
-                    flow_mask[..., None] * pred_trans_0
-                    + fixed_mask[..., None] * gt_trans_0
-                )
+                trans_pred_0 = flow_mask[..., None] * pred_trans_0 + fixed_mask[..., None] * gt_trans_0
                 psi_pred = model_out["psi"]
                 if aux_traj:
-                    atom37_0 = all_atom.compute_backbone(
-                        ru.Rigid.from_tensor_7(rigid_pred), psi_pred
-                    )[0]
+                    atom37_0 = all_atom.compute_backbone(ru.Rigid.from_tensor_7(rigid_pred), psi_pred)[0]
                     all_bb_0_pred.append(du.move_to_np(atom37_0))
                     all_trans_0_pred.append(du.move_to_np(trans_pred_0))
                 atom37_t = all_atom.compute_backbone(rigids_t, psi_pred)[0]

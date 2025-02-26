@@ -4,11 +4,11 @@ defaults:
   - flow_matcher: default
   - model: benchmark
   - experiment: baseline
-  - local: null
+  - local: example
   - wandb: default
   - override hydra/launcher: joblib
   - _self_
 
     # start_time_string: ${now:%Y-%m-%d}_${now:%H-%M-%S}
 start_time_string: "default"
-conda_env: se3
+conda_env: foldflow-env
