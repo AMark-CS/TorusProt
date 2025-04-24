@@ -47,9 +47,7 @@ def read_pkl(read_path: str, verbose=True, use_torch=False, map_location=None):
                 return CPU_Unpickler(handle).load()
         except Exception as e2:
             if verbose:
-                print(
-                    f"Failed to read {read_path}. First error: {e}\n Second error: {e2}"
-                )
+                print(f"Failed to read {read_path}. First error: {e}\n Second error: {e2}")
             raise (e)
 
 
@@ -95,9 +93,7 @@ def pad(x: np.ndarray, max_len: int, pad_idx=0, use_torch=False, reverse=False):
 def pad_rigid(rigid: torch.tensor, max_len: int):
     num_rigids = rigid.shape[0]
     pad_amt = max_len - num_rigids
-    pad_rigid = rigid_utils.Rigid.identity(
-        (pad_amt,), dtype=rigid.dtype, device=rigid.device, requires_grad=False
-    )
+    pad_rigid = rigid_utils.Rigid.identity((pad_amt,), dtype=rigid.dtype, device=rigid.device, requires_grad=False)
     return torch.cat([rigid, pad_rigid.to_tensor_7()], dim=0)
 
 
@@ -186,9 +182,7 @@ def possible_tuple_length_batching_multi_gpu(
 ):
     if type(x[0]) == tuple:
         # Assume this is a validation dataset of the second type
-        return length_batching_multi_gpu(
-            [y[0] for y in x], max_squared_res, num_gpus
-        ), [y[1] for y in x]
+        return length_batching_multi_gpu([y[0] for y in x], max_squared_res, num_gpus), [y[1] for y in x]
     else:
         return length_batching_multi_gpu(x, max_squared_res, num_gpus)
 
@@ -253,14 +247,14 @@ def create_data_loader(
                 x, max_squared_res=max_squared_res, num_gpus=num_gpus
             )
         else:
-            collate_fn = lambda x: possible_tuple_length_batching(
-                x, max_squared_res=max_squared_res
-            )
+            collate_fn = lambda x: possible_tuple_length_batching(x, max_squared_res=max_squared_res)
     else:
         collate_fn = None
 
     persistent_workers = True if num_workers > 0 else False
-    prefetch_factor = 2 if num_workers == 0 else prefetch_factor
+    # TODO: Check if prefetch_factor and find out what to use
+    # prefetch_factor = 2 if num_workers == 0 else prefetch_factor
+    prefetch_factor = None if num_workers == 0 else prefetch_factor
     return data.DataLoader(
         torch_dataset,
         sampler=sampler,
@@ -273,16 +267,12 @@ def create_data_loader(
         pin_memory=True,
         drop_last=drop_last,
         # Need fork https://github.com/facebookresearch/hydra/issues/964
-        multiprocessing_context="fork"
-        if num_workers != 0
-        else None,  # TODO Try without. Doesn't seem to matter
+        multiprocessing_context="fork" if num_workers != 0 else None,  # TODO Try without. Doesn't seem to matter
     )
 
 
 def calc_distogram(pos, min_bin, max_bin, num_bins):
-    dists_2d = torch.linalg.norm(pos[:, :, None, :] - pos[:, None, :, :], axis=-1)[
-        ..., None
-    ]
+    dists_2d = torch.linalg.norm(pos[:, :, None, :] - pos[:, None, :, :], axis=-1)[..., None]
     lower = torch.linspace(min_bin, max_bin, num_bins, device=pos.device)
     upper = torch.cat([lower[1:], lower.new_tensor([1e8])], dim=-1)
     dgram = ((dists_2d > lower) * (dists_2d < upper)).type(pos.dtype)
@@ -381,9 +371,7 @@ def process_chain(chain: Chain, chain_id: str) -> Protein:
     chain_ids = []
     for res in chain:
         res_shortname = residue_constants.restype_3to1.get(res.resname, "X")
-        restype_idx = residue_constants.restype_order.get(
-            res_shortname, residue_constants.restype_num
-        )
+        restype_idx = residue_constants.restype_order.get(res_shortname, residue_constants.restype_num)
         pos = np.zeros((residue_constants.atom_type_num, 3))
         mask = np.zeros((residue_constants.atom_type_num,))
         res_b_factors = np.zeros((residue_constants.atom_type_num,))

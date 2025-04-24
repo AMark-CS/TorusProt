@@ -1,0 +1,243 @@
+_wandb:
+    value:
+        cli_version: 0.19.4
+        m: []
+        python_version: 3.8.20
+        t:
+            "1":
+                - 1
+                - 5
+                - 50
+                - 53
+                - 55
+                - 106
+            "2":
+                - 1
+                - 5
+                - 50
+                - 53
+                - 55
+                - 106
+            "3":
+                - 13
+                - 14
+                - 16
+                - 23
+                - 55
+            "4": 3.8.20
+            "5": 0.19.4
+            "8":
+                - 8
+            "12": 0.19.4
+            "13": linux-x86_64
+conda_env:
+    value: foldflow-env
+data:cache_dataset_in_memory:
+    value: false
+data:cache_full_dataset:
+    value: false
+data:cache_path:
+    value: ./cache/
+data:cluster_path:
+    value: ./data/clusters-by-entity-30.txt
+data:csv_path:
+    value: ./data/metadata_one.csv
+data:filtering:allowed_oligomer:
+    value:
+        - monomeric
+data:filtering:max_helix_percent:
+    value: 1
+data:filtering:max_len:
+    value: 512
+data:filtering:max_loop_percent:
+    value: 0.5
+data:filtering:min_beta_percent:
+    value: -1
+data:filtering:min_len:
+    value: 60
+data:filtering:rog_quantile:
+    value: 0.96
+data:filtering:subset:
+    value: null
+data:max_same_res:
+    value: 50
+data:min_t:
+    value: 0.01
+data:num_csv_processors:
+    value: 5
+data:num_eval_lengths:
+    value: 10
+data:num_t:
+    value: 100
+data:samples_per_eval_length:
+    value: 4
+experiment:aux_loss_weight:
+    value: 0.25
+experiment:batch_size:
+    value: 2
+experiment:bb_atom_loss_t_filter:
+    value: 0.25
+experiment:bb_atom_loss_weight:
+    value: 1
+experiment:ckpt_dir:
+    value: ./ckpt_dir/
+experiment:ckpt_freq:
+    value: 250
+experiment:coordinate_scaling:
+    value: 0.1
+experiment:dist_mat_loss_t_filter:
+    value: 0.25
+experiment:dist_mat_loss_weight:
+    value: 1
+experiment:early_ckpt:
+    value: true
+experiment:eval_batch_size:
+    value: 4
+experiment:eval_dir:
+    value: ./eval_outputs/2f60/default
+experiment:eval_freq:
+    value: 250
+experiment:full_ckpt_dir:
+    value: ./ckpt_dir//2f60/
+experiment:learning_rate:
+    value: 0.0001
+experiment:log_freq:
+    value: 100
+experiment:max_squared_res:
+    value: 500000
+experiment:name:
+    value: 2f60
+experiment:noise_scale:
+    value: 1
+experiment:num_epoch:
+    value: 1500
+experiment:num_gpus:
+    value: 1
+experiment:num_loader_workers:
+    value: 8
+experiment:num_parameters:
+    value: 17446190
+experiment:prefetch_factor:
+    value: 100
+experiment:rot_loss_t_threshold:
+    value: 0
+experiment:rot_loss_weight:
+    value: 0.5
+experiment:run_id:
+    value: null
+experiment:sample_mode:
+    value: cluster_time_batch
+experiment:separate_rot_loss:
+    value: true
+experiment:torch_num_threads:
+    value: 8
+experiment:trans_loss_weight:
+    value: 1
+experiment:trans_x0_threshold:
+    value: 0
+experiment:use_ddp:
+    value: false
+experiment:use_gpu:
+    value: false
+experiment:use_warm_start_conf:
+    value: false
+experiment:wandb_dir:
+    value: ./wandb/
+experiment:warm_start:
+    value: null
+flow_matcher:flow_rot:
+    value: true
+flow_matcher:flow_trans:
+    value: true
+flow_matcher:ot_fn:
+    value: exact
+flow_matcher:ot_plan:
+    value: true
+flow_matcher:r3:coordinate_scaling:
+    value: 0.1
+flow_matcher:r3:g:
+    value: 0.1
+flow_matcher:r3:max_b:
+    value: 20
+flow_matcher:r3:min_b:
+    value: 0.01
+flow_matcher:r3:min_sigma:
+    value: 0.01
+flow_matcher:reg:
+    value: 0.05
+flow_matcher:so3:axis_angle:
+    value: true
+flow_matcher:so3:g:
+    value: 0.1
+flow_matcher:so3:inference_scaling:
+    value: -0.01
+flow_matcher:so3:max_sigma:
+    value: 1.5
+flow_matcher:so3:min_sigma:
+    value: 0.01
+flow_matcher:stochastic_paths:
+    value: false
+model:axis_angle:
+    value: true
+model:dropout:
+    value: 0
+model:edge_embed_size:
+    value: 128
+model:embed:aatype_embed_size:
+    value: 64
+model:embed:embed_self_conditioning:
+    value: true
+model:embed:index_embed_size:
+    value: 32
+model:embed:max_bin:
+    value: 20
+model:embed:min_bin:
+    value: 1e-05
+model:embed:num_bins:
+    value: 22
+model:ipa:c_hidden:
+    value: 256
+model:ipa:c_s:
+    value: 256
+model:ipa:c_skip:
+    value: 64
+model:ipa:c_z:
+    value: 128
+model:ipa:coordinate_scaling:
+    value: 0.1
+model:ipa:no_heads:
+    value: 8
+model:ipa:no_qk_points:
+    value: 8
+model:ipa:no_v_points:
+    value: 12
+model:ipa:num_blocks:
+    value: 4
+model:ipa:p_uncond:
+    value: 0.2
+model:ipa:seq_tfmr_num_heads:
+    value: 4
+model:ipa:seq_tfmr_num_layers:
+    value: 2
+model:model_name:
+    value: ff1
+model:node_embed_size:
+    value: 256
+start_time_string:
+    value: default
+wandb:dir:
+    value: ./
+wandb:entity:
+    value: null
+wandb:group:
+    value: null
+wandb:job_type:
+    value: null
+wandb:offline:
+    value: false
+wandb:project:
+    value: foldflow
+wandb:tags:
+    value: null
+wandb:use_wandb:
+    value: true

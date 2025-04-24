@@ -933,7 +933,7 @@ class Experiment:
         return ret
 
 
-@hydra.main(version_base=None, config_path="config/", config_name="base")
+@hydra.main(version_base=None, config_path="config/", config_name="base_test")
 def run(conf: DictConfig) -> None:
 
     # Fixes bug in https://github.com/wandb/wandb/issues/1525
