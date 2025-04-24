@@ -6,12 +6,10 @@ channels:
   - conda-forge
   - defaults
 dependencies:
-  - python>=3.8,<3.11
-  - pytorch<2
+  - python==3.10
   - libstdcxx-ng
   - mdtraj
   - pip
-  # - pdbfixer=1.8.1
   - pip:
       - biopython
       - click
@@ -19,6 +17,7 @@ dependencies:
       - debugpy
       - dm-tree
       - einops
+      - e3nn==0.5.6
       - fair-esm
       - git+https://github.com/joeybose/geomstats.git
       - gputil
@@ -26,8 +25,8 @@ dependencies:
       - hydra-joblib-launcher
       - ipdb
       - jupyterlab
-      - lightning
       - lmdb
+      - lightning==2.5.1
       - ml-collections
       - numpy
       - pandas
@@ -40,5 +39,15 @@ dependencies:
       - wandb>=0.15.1
       - OpenMM
       - pydantic
+      - pytorch_lightning==2.5.1
       - biotite
+      - torch_scatter
+      - torch_sparse
+      - torch_cluster
+      - --find-links https://data.pyg.org/whl/torch-2.4.0+cu124.html
+      - torch_geometric==2.6.1
+  - pip:
+      - torch==2.4.0
+      - torchvision==0.19.0
+      - --index-url https://download.pytorch.org/whl/cu124
       - -e .
