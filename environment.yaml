@@ -39,7 +39,6 @@ dependencies:
       - wandb>=0.15.1
       - OpenMM
       - pydantic
-      - pytorch_lightning==2.5.1
       - biotite
       - torch_scatter
       - torch_sparse
