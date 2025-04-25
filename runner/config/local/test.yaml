@@ -18,12 +18,12 @@ experiment:
   name: 2f60
   separate_rot_loss: True
   use_ddp: False
-  num_gpus: 0
-  num_loader_workers: 1
-  torch_num_threads: 8
-  batch_size: 1
-  num_epoch: 1500
-  ckpt_freq: 250
+  num_gpus: 1
+  num_loader_workers: 12
+  torch_num_threads: 12
+  batch_size: 11
+  num_epoch: 2000
+  ckpt_freq: 500
   eval_freq: 250
 
 flow_matcher:

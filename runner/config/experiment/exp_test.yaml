@@ -1,5 +1,5 @@
 # Experiment metadata
-name: baseline
+name: ff1_debug
 run_id: null
 
 #training mode
@@ -9,14 +9,14 @@ use_ddp : False
 log_freq: 100
 batch_size: 256
 eval_batch_size: ${data.samples_per_eval_length}
-num_loader_workers: 1
-torch_num_threads: 1
-num_epoch: 500
+num_loader_workers: 12
+torch_num_threads: 12
+num_epoch: 1500
 learning_rate: 0.0001
 max_squared_res: 500000
 prefetch_factor: None
-use_gpu: False
-num_gpus: 0
+use_gpu: True
+num_gpus: 1
 sample_mode: cluster_time_batch
 
 
