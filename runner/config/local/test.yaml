@@ -15,10 +15,12 @@ data:
 experiment:
   wandb_dir: ./wandb/
   ckpt_dir: ./ckpt_dir/
-  name: example
+  name: 2f60
   separate_rot_loss: True
   use_ddp: False
   num_gpus: 1
+  num_loader_workers: 12
+  torch_num_threads: 12
   batch_size: 11
   num_epoch: 2000
   ckpt_freq: 500
@@ -26,7 +28,6 @@ experiment:
 
 flow_matcher:
   stochastic_paths: False
-
 
 wandb:
   tags: null
