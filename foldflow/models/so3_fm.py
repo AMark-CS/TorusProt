@@ -10,7 +10,7 @@ from typing import Union
 import numpy as np
 import torch
 from einops import rearrange
-from functorch import vmap
+from torch import vmap
 from geomstats.geometry.special_orthogonal import SpecialOrthogonal
 from scipy.spatial.transform import Rotation
 from torch import Tensor
@@ -56,9 +56,7 @@ class SO3FM:
             t = torch.tensor(t)
         return torch.sqrt(self.g**2 * t * (1 - t) + self.min_sigma**2)
 
-    def forward_marginal(
-        self, rot_0: np.ndarray, t: float, rot_1: Union[torch.Tensor, None] = None
-    ):
+    def forward_marginal(self, rot_0: np.ndarray, t: float, rot_1: Union[torch.Tensor, None] = None):
         """Samples from the forward diffusion process at time index t.
 
         Args:
@@ -117,9 +115,7 @@ class SO3FM:
 
         rot_t_1 = expmap(torch.tensor(rot_t).double(), torch.tensor(perturb).double())
         if self.stochastic_paths:
-            z = noise_scale * torch.randn(
-                size=v_t.shape[:-1], device=rot_t_1.device, dtype=torch.float64
-            )
+            z = noise_scale * torch.randn(size=v_t.shape[:-1], device=rot_t_1.device, dtype=torch.float64)
             z = _flat_vec(z)
             dB_skew_sym = hat(self.g * np.sqrt(dt) * z)
             dB_skew_sym = dB_skew_sym.reshape(rot_t.shape)
@@ -130,20 +126,13 @@ class SO3FM:
     def vectorfield(self, rot_0, rot_t, t):
         """uses rot_0 and rot_t and t to calculate ut"""
         batch_size = t.shape[0]
-        t = (
-            torch.clamp(t, min=1e-4, max=1 - 1e-4)
-            .repeat_interleave(rot_0.shape[1])
-            .double()
-        )
+        t = torch.clamp(t, min=1e-4, max=1 - 1e-4).repeat_interleave(rot_0.shape[1]).double()
         rot_0 = rearrange(rot_0, "t n c d -> (t n) c d", c=3, d=3).double()
         rot_t = rearrange(rot_t, "t n c d -> (t n) c d", c=3, d=3).double()
 
         rot_t_minus_0 = rot_0.transpose(-1, -2) @ rot_t
         if self.inference_scaling < 0:
-            u_t = rot_t @ (
-                log(rot_t_minus_0)
-                / torch.clamp(t[:, None, None], min=-self.inference_scaling)
-            )
+            u_t = rot_t @ (log(rot_t_minus_0) / torch.clamp(t[:, None, None], min=-self.inference_scaling))
         else:
             u_t = rot_t @ (log(rot_t_minus_0) * self.inference_scaling)
         rot_t = rearrange(rot_t, "(t n) c d -> t n c d", t=batch_size, c=3, d=3)

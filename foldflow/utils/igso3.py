@@ -1,7 +1,7 @@
 """Copyright (c) Dreamfold."""
+
 import torch
-from torch import Tensor
-from functorch import vmap
+from torch import Tensor, vmap
 from foldflow.utils.so3_helpers import so3_exp_map
 
 
@@ -17,9 +17,7 @@ def f_igso3_small(omega, sigma):
 
     small_number = 1e-9
     small_num = small_number / 2
-    small_dnm = (
-        1 - torch.exp(-1.0 * pi**2 / eps) * (2 - 4 * (pi**2) / eps)
-    ) * small_number
+    small_dnm = (1 - torch.exp(-1.0 * pi**2 / eps) * (2 - 4 * (pi**2) / eps)) * small_number
 
     return (
         0.5
@@ -80,9 +78,7 @@ def _pdf(omega, eps):
 def _sample(eps, n):
     # sample n points from IGSO3(I, eps)
     num_omegas = 1024
-    omega_grid = torch.linspace(0, torch.pi, num_omegas + 1).to(eps.device)[
-        1:
-    ]  # skip omega=0
+    omega_grid = torch.linspace(0, torch.pi, num_omegas + 1).to(eps.device)[1:]  # skip omega=0
     # numerical integration of (1-cos(omega))/pi*f_igso3(omega, eps) over omega
     pdf = _pdf(omega_grid, eps)
     dx = omega_grid[1] - omega_grid[0]
@@ -92,16 +88,10 @@ def _sample(eps, n):
     rand_angle = torch.rand(n).to(eps.device)
     omegas = interp(rand_angle, cdf, omega_grid)
     axes = torch.randn(n, 3).to(eps.device)  # sample axis uniformly
-    axis_angle = (
-        omegas[..., None] * axes / torch.linalg.norm(axes, dim=-1, keepdim=True)
-    )
+    axis_angle = omegas[..., None] * axes / torch.linalg.norm(axes, dim=-1, keepdim=True)
     return axis_angle
 
 
 def _batch_sample(mu, eps, n):
-    aa_samples = (
-        vmap(_sample, in_dims=(0, None), randomness="different")(eps, n)
-        .squeeze()
-        .double()
-    )
+    aa_samples = vmap(_sample, in_dims=(0, None), randomness="different")(eps, n).squeeze().double()
     return mu @ so3_exp_map(aa_samples)
