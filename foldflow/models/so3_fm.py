@@ -49,7 +49,7 @@ class SO3FM:
         return Rotation.random(n_samples).as_matrix()
 
     def sample_ref(self, n_samples: float = 1):
-        return self.sample(1, n_samples=n_samples)
+        return self.sample(n_samples=n_samples)
 
     def compute_sigma_t(self, t):
         if isinstance(t, float):
