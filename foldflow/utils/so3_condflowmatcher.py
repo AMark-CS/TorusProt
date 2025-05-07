@@ -13,22 +13,22 @@ class SO3ConditionalFlowMatcher:
         self.vec_manifold = SpecialOrthogonal(n=3, point_type="vector")
 
     def vec_log_map(self, x0, x1):
-        # get logmap of x_1 from x_0
+        # get logmap of x_1 from x_0 (direction of the geodesic that shoots from x_0 and lands on x_1)
         # convert to axis angle to compute logmap efficiently
-        rot_x0 = rotmat_to_rotvec(x0)  # rotation vectors for data distribution
-        rot_x1 = rotmat_to_rotvec(x1)  # rotation vectors for the uniform prior
+        rot_x0 = rotmat_to_rotvec(x0)  # rotation vectors for the uniform prior
+        rot_x1 = rotmat_to_rotvec(x1)  # rotation vectors for the data distribution
 
         torch.set_default_dtype(torch.float64)
-        log_x1 = self.vec_manifold.log_not_from_identity(rot_x1, rot_x0)
+        log_x1 = self.vec_manifold.log_not_from_identity(point=rot_x1, base_point=rot_x0)
         torch.set_default_dtype(torch.float32)
         return log_x1, rot_x0
 
     def sample_xt(self, x0, x1, t):
-        # sample along the geodesic from x0 to x1
         log_x1, rot_x0 = self.vec_log_map(x0.double(), x1.double())
-        # group exponential at x0
+        # Get a point along the geodesic from x0 to x1, using the direction computed by the logmap
+        # t is a point in [0, 1] that determines the location along the geodesic
         torch.set_default_dtype(torch.float64)
-        xt = self.vec_manifold.exp_not_from_identity(t.reshape(-1, 1) * log_x1, rot_x0)
+        xt = self.vec_manifold.exp_not_from_identity(tangent_vec=t.reshape(-1, 1) * log_x1, base_point=rot_x0)
         xt = self.vec_manifold.matrix_from_rotation_vector(xt)
         torch.set_default_dtype(torch.float32)
         return xt
@@ -37,9 +37,11 @@ class SO3ConditionalFlowMatcher:
         xt = rearrange(xt, "b c d -> b (c d)", c=3, d=3)
 
         def index_time_der(i):
-            return torch.autograd.grad(xt, t, i, create_graph=True, retain_graph=True)[0]
+            return torch.autograd.grad(outputs=xt, inputs=t, grad_outputs=i, create_graph=True, retain_graph=True)[0]
 
-        xt_dot = vmap(index_time_der, in_dims=1)(torch.eye(9).to(xt.device).repeat(xt.shape[0], 1, 1))
+        # A batch of identity matrices used to separately compute the time derivative for for each component of xt
+        identity_matrices = torch.eye(9).to(xt.device).repeat(xt.shape[0], 1, 1)
+        xt_dot = vmap(index_time_der, in_dims=1)(identity_matrices)
         return rearrange(xt_dot, "(c d) b -> b c d", c=3, d=3)
 
     def sample_location_and_conditional_flow_simple(self, x0, x1):

@@ -32,43 +32,25 @@ def rot_matmul(a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
     """
     row_1 = torch.stack(
         [
-            a[..., 0, 0] * b[..., 0, 0]
-            + a[..., 0, 1] * b[..., 1, 0]
-            + a[..., 0, 2] * b[..., 2, 0],
-            a[..., 0, 0] * b[..., 0, 1]
-            + a[..., 0, 1] * b[..., 1, 1]
-            + a[..., 0, 2] * b[..., 2, 1],
-            a[..., 0, 0] * b[..., 0, 2]
-            + a[..., 0, 1] * b[..., 1, 2]
-            + a[..., 0, 2] * b[..., 2, 2],
+            a[..., 0, 0] * b[..., 0, 0] + a[..., 0, 1] * b[..., 1, 0] + a[..., 0, 2] * b[..., 2, 0],
+            a[..., 0, 0] * b[..., 0, 1] + a[..., 0, 1] * b[..., 1, 1] + a[..., 0, 2] * b[..., 2, 1],
+            a[..., 0, 0] * b[..., 0, 2] + a[..., 0, 1] * b[..., 1, 2] + a[..., 0, 2] * b[..., 2, 2],
         ],
         dim=-1,
     )
     row_2 = torch.stack(
         [
-            a[..., 1, 0] * b[..., 0, 0]
-            + a[..., 1, 1] * b[..., 1, 0]
-            + a[..., 1, 2] * b[..., 2, 0],
-            a[..., 1, 0] * b[..., 0, 1]
-            + a[..., 1, 1] * b[..., 1, 1]
-            + a[..., 1, 2] * b[..., 2, 1],
-            a[..., 1, 0] * b[..., 0, 2]
-            + a[..., 1, 1] * b[..., 1, 2]
-            + a[..., 1, 2] * b[..., 2, 2],
+            a[..., 1, 0] * b[..., 0, 0] + a[..., 1, 1] * b[..., 1, 0] + a[..., 1, 2] * b[..., 2, 0],
+            a[..., 1, 0] * b[..., 0, 1] + a[..., 1, 1] * b[..., 1, 1] + a[..., 1, 2] * b[..., 2, 1],
+            a[..., 1, 0] * b[..., 0, 2] + a[..., 1, 1] * b[..., 1, 2] + a[..., 1, 2] * b[..., 2, 2],
         ],
         dim=-1,
     )
     row_3 = torch.stack(
         [
-            a[..., 2, 0] * b[..., 0, 0]
-            + a[..., 2, 1] * b[..., 1, 0]
-            + a[..., 2, 2] * b[..., 2, 0],
-            a[..., 2, 0] * b[..., 0, 1]
-            + a[..., 2, 1] * b[..., 1, 1]
-            + a[..., 2, 2] * b[..., 2, 1],
-            a[..., 2, 0] * b[..., 0, 2]
-            + a[..., 2, 1] * b[..., 1, 2]
-            + a[..., 2, 2] * b[..., 2, 2],
+            a[..., 2, 0] * b[..., 0, 0] + a[..., 2, 1] * b[..., 1, 0] + a[..., 2, 2] * b[..., 2, 0],
+            a[..., 2, 0] * b[..., 0, 1] + a[..., 2, 1] * b[..., 1, 1] + a[..., 2, 2] * b[..., 2, 1],
+            a[..., 2, 0] * b[..., 0, 2] + a[..., 2, 1] * b[..., 1, 2] + a[..., 2, 2] * b[..., 2, 2],
         ],
         dim=-1,
     )
@@ -119,9 +101,7 @@ def identity_trans(
     device: Optional[torch.device] = None,
     requires_grad: bool = True,
 ) -> torch.Tensor:
-    trans = torch.zeros(
-        (*batch_dims, 3), dtype=dtype, device=device, requires_grad=requires_grad
-    )
+    trans = torch.zeros((*batch_dims, 3), dtype=dtype, device=device, requires_grad=requires_grad)
     return trans
 
 
@@ -131,9 +111,7 @@ def identity_quats(
     device: Optional[torch.device] = None,
     requires_grad: bool = True,
 ) -> torch.Tensor:
-    quat = torch.zeros(
-        (*batch_dims, 4), dtype=dtype, device=device, requires_grad=requires_grad
-    )
+    quat = torch.zeros((*batch_dims, 4), dtype=dtype, device=device, requires_grad=requires_grad)
 
     with torch.no_grad():
         quat[..., 0] = 1
@@ -259,9 +237,7 @@ def quat_multiply_by_vec(quat, vec):
     """Multiply a quaternion by a pure-vector quaternion."""
     mat = quat.new_tensor(_QUAT_MULTIPLY_BY_VEC)
     reshaped_mat = mat.view((1,) * len(quat.shape[:-1]) + mat.shape)
-    return torch.sum(
-        reshaped_mat * quat[..., :, None, None] * vec[..., None, :, None], dim=(-3, -2)
-    )
+    return torch.sum(reshaped_mat * quat[..., :, None, None] * vec[..., None, :, None], dim=(-3, -2))
 
 
 def invert_rot_mat(rot_mat: torch.Tensor):
@@ -303,14 +279,10 @@ class Rotation:
             normalize_quats:
                 If quats is specified, whether to normalize quats
         """
-        if (rot_mats is None and quats is None) or (
-            rot_mats is not None and quats is not None
-        ):
+        if (rot_mats is None and quats is None) or (rot_mats is not None and quats is not None):
             raise ValueError("Exactly one input argument must be specified")
 
-        if (rot_mats is not None and rot_mats.shape[-2:] != (3, 3)) or (
-            quats is not None and quats.shape[-1] != 4
-        ):
+        if (rot_mats is not None and rot_mats.shape[-2:] != (3, 3)) or (quats is not None and quats.shape[-1] != 4):
             raise ValueError("Incorrectly shaped rotation matrix or quaternion")
 
         # Force full-precision
@@ -571,9 +543,7 @@ class Rotation:
         large_angle_scales = angle / torch.sin(angle / 2 + eps)
 
         small_angles = (angle <= 1e-3).float()
-        rot_vec_scale = (
-            small_angle_scales * small_angles + (1 - small_angles) * large_angle_scales
-        )
+        rot_vec_scale = small_angle_scales * small_angles + (1 - small_angles) * large_angle_scales
         rot_vec = rot_vec_scale[..., None] * quat[..., 1:]
         return rot_vec
 
@@ -759,15 +729,11 @@ class Rotation:
         """
         if self._rot_mats is not None:
             rot_mats = self._rot_mats.view(self._rot_mats.shape[:-2] + (9,))
-            rot_mats = torch.stack(
-                list(map(fn, torch.unbind(rot_mats, dim=-1))), dim=-1
-            )
+            rot_mats = torch.stack(list(map(fn, torch.unbind(rot_mats, dim=-1))), dim=-1)
             rot_mats = rot_mats.view(rot_mats.shape[:-1] + (3, 3))
             return Rotation(rot_mats=rot_mats, quats=None)
         elif self._quats is not None:
-            quats = torch.stack(
-                list(map(fn, torch.unbind(self._quats, dim=-1))), dim=-1
-            )
+            quats = torch.stack(list(map(fn, torch.unbind(self._quats, dim=-1))), dim=-1)
             return Rotation(rot_mats=None, quats=quats, normalize_quats=False)
         else:
             raise ValueError("Both rotations are None")
@@ -782,9 +748,7 @@ class Rotation:
         if self._rot_mats is not None:
             return Rotation(rot_mats=self._rot_mats.cuda(), quats=None)
         elif self._quats is not None:
-            return Rotation(
-                rot_mats=None, quats=self._quats.cuda(), normalize_quats=False
-            )
+            return Rotation(rot_mats=None, quats=self._quats.cuda(), normalize_quats=False)
         else:
             raise ValueError("Both rotations are None")
 
@@ -1146,9 +1110,7 @@ class Rigid:
             The transformed Rigid object
         """
         new_rots = self._rots.map_tensor_fn(fn)
-        new_trans = torch.stack(
-            list(map(fn, torch.unbind(self._trans, dim=-1))), dim=-1
-        )
+        new_trans = torch.stack(list(map(fn, torch.unbind(self._trans, dim=-1))), dim=-1)
 
         return Rigid(new_rots, new_trans)
 
@@ -1235,27 +1197,28 @@ class Rigid:
         origin = torch.unbind(origin, dim=-1)
         p_xy_plane = torch.unbind(p_xy_plane, dim=-1)
 
-        e0 = [c1 - c2 for c1, c2 in zip(origin, p_neg_x_axis)]
-        e1 = [c1 - c2 for c1, c2 in zip(p_xy_plane, origin)]
+        # TODO: find out why it's v1 = origin - p_neg_x_axis VS p_neg_x_axis - origin
+        e0 = [c1 - c2 for c1, c2 in zip(origin, p_neg_x_axis)]  # v1
+        e1 = [c1 - c2 for c1, c2 in zip(p_xy_plane, origin)]  # v2
 
         denom = torch.sqrt(sum((c * c for c in e0)) + eps)
-        e0 = [c / denom for c in e0]
-        dot = sum((c1 * c2 for c1, c2 in zip(e0, e1)))
-        e1 = [c2 - c1 * dot for c1, c2 in zip(e0, e1)]
-        denom = torch.sqrt(sum((c * c for c in e1)) + eps)
-        e1 = [c / denom for c in e1]
+        e0 = [c / denom for c in e0]  # e1 = v1 / ||v1||
+        dot = sum((c1 * c2 for c1, c2 in zip(e0, e1)))  # e1 . v2
+        e1 = [c2 - c1 * dot for c1, c2 in zip(e0, e1)]  # u2 = v2 - e1 * (e1 . v2)
+        denom = torch.sqrt(sum((c * c for c in e1)) + eps)  # ||u2||
+        e1 = [c / denom for c in e1]  # e2 = u2 / ||u2||
         e2 = [
             e0[1] * e1[2] - e0[2] * e1[1],
             e0[2] * e1[0] - e0[0] * e1[2],
             e0[0] * e1[1] - e0[1] * e1[0],
-        ]
+        ]  # e3 = e1 x e2
 
-        rots = torch.stack([c for tup in zip(e0, e1, e2) for c in tup], dim=-1)
+        rots = torch.stack([c for tup in zip(e0, e1, e2) for c in tup], dim=-1)  # R = concat(e1, e2, e3)
         rots = rots.reshape(rots.shape[:-1] + (3, 3))
 
         rot_obj = Rotation(rot_mats=rots, quats=None)
 
-        return Rigid(rot_obj, torch.stack(origin, dim=-1))
+        return Rigid(rot_obj, torch.stack(origin, dim=-1))  # (R, t)
 
     def unsqueeze(
         self,

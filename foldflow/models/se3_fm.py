@@ -57,8 +57,6 @@ class SE3FlowMatcher:
             rot_vectorfield_norm: [...] rotation vectorfield norm
         """
         trans_0, rot_0 = extract_trans_rots_mat(rigids_0)
-        rot_0 = rigids_0.get_rots().get_rot_mats().cpu().numpy()
-        trans_0 = rigids_0.get_trans().cpu().numpy()
 
         if rigids_1 is not None:
             rot_1 = rigids_1.get_rots().get_rot_mats().cpu().numpy()
@@ -74,9 +72,7 @@ class SE3FlowMatcher:
                 np.ones_like(t),
             )
         else:
-            rot_t, rot_vectorfield = self._so3_fm.forward_marginal(
-                rot_0, t, rot_1=rot_1
-            )
+            rot_t, rot_vectorfield = self._so3_fm.forward_marginal(rot_0, t, rot_1=rot_1)
             rot_vectorfield_scaling = self._so3_fm.vectorfield_scaling(t)
 
         if not self._flow_trans:
@@ -86,9 +82,7 @@ class SE3FlowMatcher:
                 np.ones_like(t),
             )
         else:
-            trans_t, trans_vectorfield = self._r3_fm.forward_marginal(
-                trans_0, t, x_1=trans_1
-            )
+            trans_t, trans_vectorfield = self._r3_fm.forward_marginal(trans_0, t, x_1=trans_1)
             trans_vectorfield_scaling = self._r3_fm.vectorfield_scaling(t)
 
         if flow_mask is not None:
@@ -100,9 +94,7 @@ class SE3FlowMatcher:
                 np.zeros_like(trans_vectorfield),
                 flow_mask[..., None],
             )
-            rot_vectorfield = self._apply_mask(
-                rot_vectorfield, np.zeros_like(rot_vectorfield), flow_mask[..., None]
-            )
+            rot_vectorfield = self._apply_mask(rot_vectorfield, np.zeros_like(rot_vectorfield), flow_mask[..., None])
         rigids_t = ru.Rigid(
             rots=ru.Rotation(rot_mats=rot_t),
             trans=trans_t,
@@ -120,9 +112,7 @@ class SE3FlowMatcher:
         }
 
     def calc_trans_vectorfield(self, trans_0, trans_t, t, use_torch=False, scale=True):
-        return self._r3_fm.vectorfield(
-            trans_0, trans_t, t, use_torch=use_torch, scale=scale
-        )
+        return self._r3_fm.vectorfield(trans_0, trans_t, t, use_torch=use_torch, scale=scale)
 
     def calc_rot_vectorfield(self, rot_0, rot_t, t):
         return self._so3_fm.vectorfield(rot_0, rot_t, t)

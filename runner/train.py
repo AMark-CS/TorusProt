@@ -299,7 +299,7 @@ class Experiment:
             name=self._exp_conf.name,
             config=dict(eu.flatten_dict(conf_dict)),
             dir=self._wandb_conf.dir,
-            id=self._exp_conf.run_id,
+            id=self._exp_conf.run_id,  # wandb.util.generate_id(),
             tags=self._wandb_conf.tags,
             group=self._wandb_conf.group,
             mode="offline" if self._wandb_conf.offline else "online",

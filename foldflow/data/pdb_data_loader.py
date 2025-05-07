@@ -112,9 +112,7 @@ def _process_csv_row(csv, processed_file_path):
     min_idx = np.min(modeled_idx)
     max_idx = np.max(modeled_idx)
     del processed_feats["modeled_idx"]
-    processed_feats = tree.map_structure(
-        lambda x: x[min_idx : (max_idx + 1)], processed_feats
-    )
+    processed_feats = tree.map_structure(lambda x: x[min_idx : (max_idx + 1)], processed_feats)
 
     # Run through OpenFold data transforms.
     chain_feats = {
@@ -134,11 +132,7 @@ def _process_csv_row(csv, processed_file_path):
     new_res_idx = np.zeros_like(res_idx)
     new_chain_idx = np.zeros_like(res_idx)
     all_chain_idx = np.unique(chain_idx).tolist()
-    shuffled_chain_idx = (
-        np.array(random.sample(all_chain_idx, len(all_chain_idx)))
-        - np.min(all_chain_idx)
-        + 1
-    )
+    shuffled_chain_idx = np.array(random.sample(all_chain_idx, len(all_chain_idx))) - np.min(all_chain_idx) + 1
     for i, chain_id in enumerate(all_chain_idx):
         chain_mask = (chain_idx == chain_id).astype(int)
         chain_min_idx = np.min(res_idx + (1 - chain_mask) * 1e3).astype(int)
@@ -246,13 +240,8 @@ class PdbDataset(data.Dataset):
         filter_conf = self.data_conf.filtering
         pdb_csv = pd.read_csv(self.data_conf.csv_path)
         self.raw_csv = pdb_csv
-        if (
-            filter_conf.allowed_oligomer is not None
-            and len(filter_conf.allowed_oligomer) > 0
-        ):
-            pdb_csv = pdb_csv[
-                pdb_csv.oligomeric_detail.isin(filter_conf.allowed_oligomer)
-            ]
+        if filter_conf.allowed_oligomer is not None and len(filter_conf.allowed_oligomer) > 0:
+            pdb_csv = pdb_csv[pdb_csv.oligomeric_detail.isin(filter_conf.allowed_oligomer)]
         if filter_conf.max_len is not None:
             pdb_csv = pdb_csv[pdb_csv.modeled_seq_len <= filter_conf.max_len]
         if filter_conf.min_len is not None:
@@ -265,11 +254,9 @@ class PdbDataset(data.Dataset):
             pdb_csv = pdb_csv[pdb_csv.strand_percent > filter_conf.min_beta_percent]
         if filter_conf.rog_quantile is not None and filter_conf.rog_quantile > 0.0:
             prot_rog_low_pass = _rog_quantile_curve(
-                pdb_csv, filter_conf.rog_quantile, np.arange(filter_conf.max_len)
+                df=pdb_csv, quantile=filter_conf.rog_quantile, eval_x=np.arange(filter_conf.max_len)
             )
-            row_rog_cutoffs = pdb_csv.modeled_seq_len.map(
-                lambda x: prot_rog_low_pass[x - 1]
-            )
+            row_rog_cutoffs = pdb_csv.modeled_seq_len.map(lambda x: prot_rog_low_pass[x - 1])
             pdb_csv = pdb_csv[pdb_csv.radius_gyration < row_rog_cutoffs]
         if filter_conf.subset is not None:
             pdb_csv = pdb_csv[: filter_conf.subset]
@@ -292,15 +279,11 @@ class PdbDataset(data.Dataset):
         result_tuples = [None] * len(self.csv)
         with SharedMemoryManager() as smm:
             with get_context("spawn").Pool(self.data_conf.num_csv_processors) as pool:
-                shared_list = smm.ShareableList(
-                    [bytes(3 * _BYTES_PER_MEGABYTE) for _ in range(len(self.csv))]
-                )
+                shared_list = smm.ShareableList([bytes(3 * _BYTES_PER_MEGABYTE) for _ in range(len(self.csv))])
                 partial_fxn = fn.partial(get_csv_rows_many, self.csv, shared_list)
                 iterator = enumerate(pool.imap(partial_fxn, idx_chunks))
                 for idx, _ in tqdm(iterator, total=len(idx_chunks)):
-                    start_idx, end_idx = tuple(
-                        map(lambda x: min(x, len(self.csv)), idx_chunks[idx])
-                    )
+                    start_idx, end_idx = tuple(map(lambda x: min(x, len(self.csv)), idx_chunks[idx]))
 
                     for inner_idx in tqdm(range(start_idx, end_idx)):
                         result_tuples[inner_idx] = pickle.loads(shared_list[inner_idx])
@@ -314,16 +297,13 @@ class PdbDataset(data.Dataset):
         self.gt_bb_rigid_vals = _get_list(1)
         self.pdb_names = _get_list(2)
         self.csv_rows = _get_list(3)
-        print(
-            f"Finished processing dataset csv into memory in {time.time() - st_time} seconds"
-        )
+        print(f"Finished processing dataset csv into memory in {time.time() - st_time} seconds")
 
         print("Finished loading dataset into RAM")
 
     def _build_dataset_cache_v2(self):
         print(
-            f"Starting to process dataset csv into memory "
-            f"(cache_dataset_in_memory {self._cache_dataset_in_memory})"
+            f"Starting to process dataset csv into memory " f"(cache_dataset_in_memory {self._cache_dataset_in_memory})"
         )
         print(f"ROWS {len(self.csv)}")
         # self.csv = self.csv.iloc[:500]
@@ -335,9 +315,7 @@ class PdbDataset(data.Dataset):
             print(f"Found local cache @ {self._cache_path}, skipping build")
 
         # Initialize local cache with lmdb
-        self._local_cache = lmdb.open(
-            self._cache_path, map_size=(1024**3) * 60
-        )  # 1GB * 60
+        self._local_cache = lmdb.open(self._cache_path, map_size=(1024**3) * 60)  # 1GB * 60
 
         st_time = time.time()
 
@@ -345,9 +323,7 @@ class PdbDataset(data.Dataset):
             print(f"Building cache and saving @ {self._cache_path}")
 
             dataset_size = len(self.csv)
-            num_chunks = math.ceil(
-                float(dataset_size) / self.data_conf.num_csv_processors
-            )
+            num_chunks = math.ceil(float(dataset_size) / self.data_conf.num_csv_processors)
 
             idx_chunks = get_list_chunk_slices(list(range(dataset_size)), num_chunks)
 
@@ -356,31 +332,18 @@ class PdbDataset(data.Dataset):
             pbar = tqdm(total=len(self.csv))
             with self._local_cache.begin(write=True) as txn:
                 with SharedMemoryManager() as smm:
-                    with get_context("spawn").Pool(
-                        self.data_conf.num_csv_processors
-                    ) as pool:
-                        shared_list = smm.ShareableList(
-                            [
-                                bytes(3 * _BYTES_PER_MEGABYTE)
-                                for _ in range(len(self.csv))
-                            ]
-                        )
-                        partial_fxn = fn.partial(
-                            get_csv_rows_many, self.csv, shared_list
-                        )
+                    with get_context("spawn").Pool(self.data_conf.num_csv_processors) as pool:
+                        shared_list = smm.ShareableList([bytes(3 * _BYTES_PER_MEGABYTE) for _ in range(len(self.csv))])
+                        partial_fxn = fn.partial(get_csv_rows_many, self.csv, shared_list)
                         iterator = enumerate(pool.imap(partial_fxn, idx_chunks))
                         for idx, _ in iterator:
-                            start_idx, end_idx = tuple(
-                                map(lambda x: min(x, len(self.csv)), idx_chunks[idx])
-                            )
+                            start_idx, end_idx = tuple(map(lambda x: min(x, len(self.csv)), idx_chunks[idx]))
                             # print(f"RUNNING {start_idx} {end_idx} : chunks  {idx_chunks[idx]}")
                             for inner_idx in tqdm(range(start_idx, end_idx)):
                                 txn.put(str(inner_idx).encode(), shared_list[inner_idx])
 
                                 if self._cache_dataset_in_memory:
-                                    result_tuples[inner_idx] = pickle.loads(
-                                        shared_list[inner_idx]
-                                    )
+                                    result_tuples[inner_idx] = pickle.loads(shared_list[inner_idx])
 
                                 shared_list[inner_idx] = ""
                                 pbar.update(1)
@@ -402,9 +365,7 @@ class PdbDataset(data.Dataset):
             self.pdb_names = _get_list(2)
             self.csv_rows = _get_list(3)
 
-        print(
-            f"Finished processing dataset csv into memory in {time.time() - st_time} seconds"
-        )
+        print(f"Finished processing dataset csv into memory in {time.time() - st_time} seconds")
         print("Finished loading dataset into RAM")
 
     def _get_cached_csv_row(self, idx, csv=None):
@@ -435,9 +396,7 @@ class PdbDataset(data.Dataset):
             self._log.info(f"Training: {len(self.csv)} examples")
         else:
             all_lengths = np.sort(pdb_csv.modeled_seq_len.unique())
-            length_indices = (len(all_lengths) - 1) * np.linspace(
-                0.0, 1.0, self._data_conf.num_eval_lengths
-            )
+            length_indices = (len(all_lengths) - 1) * np.linspace(0.0, 1.0, self._data_conf.num_eval_lengths)
             length_indices = length_indices.astype(int)
             eval_lengths = all_lengths[length_indices]
             eval_csv = pdb_csv[pdb_csv.modeled_seq_len.isin(eval_lengths)]
@@ -447,9 +406,7 @@ class PdbDataset(data.Dataset):
             )
             eval_csv = eval_csv.sort_values("modeled_seq_len", ascending=False)
             self.csv = eval_csv
-            self._log.info(
-                f"Validation: {len(self.csv)} examples with lengths {eval_lengths}"
-            )
+            self._log.info(f"Validation: {len(self.csv)} examples with lengths {eval_lengths}")
 
     def _create_flowed_masks(self, atom37_pos, rng, row):
         bb_pos = atom37_pos[:, residue_constants.atom_order["CA"]]
@@ -466,9 +423,7 @@ class PdbDataset(data.Dataset):
                 self._data_conf.scaffold_size_max,
                 seed_dists.shape[0] - self._data_conf.motif_size_min,
             )
-            scaffold_size = rng.integers(
-                low=self._data_conf.scaffold_size_min, high=max_scaffold_size
-            )
+            scaffold_size = rng.integers(low=self._data_conf.scaffold_size_min, high=max_scaffold_size)
             dist_cutoff = np.sort(seed_dists)[scaffold_size]
             flow_mask = (seed_dists < dist_cutoff).astype(float)
             attempts += 1
@@ -516,80 +471,57 @@ class PdbDataset(data.Dataset):
         if self.is_training and not self.is_OT:
             # Sample t and flow.
             t = rng.uniform(self._data_conf.min_t, 1.0)
-            gen_feats_t = self._gen_model.forward_marginal(
-                rigids_0=gt_bb_rigid, t=t, flow_mask=None, rigids_1=None
-            )
+            gen_feats_t = self._gen_model.forward_marginal(rigids_0=gt_bb_rigid, t=t, flow_mask=None, rigids_1=None)
         elif self.is_training and self.is_OT:
             t = rng.uniform(self._data_conf.min_t, 1.0)
-            n_res = chain_feats["aatype"].shape[
-                0
-            ]  # feat['aatype'].shape = (batch, n_res)
+            n_res = chain_feats["aatype"].shape[0]  # feat['aatype'].shape = (batch, n_res)
             # get a maximum of self.max_same_res proteins with the same length
             subset = self.csv[self.csv["modeled_seq_len"] == n_res]
             n_samples = min(subset.shape[0], self.max_same_res)
             if n_samples == 1 or n_samples == 0:
                 # only one sample, we can't do OT
                 # self._log.info(f"Only one sample of length {n_res}, skipping OT")
-                gen_feats_t = self._gen_model.forward_marginal(
-                    rigids_0=gt_bb_rigid, t=t, flow_mask=None, rigids_1=None
-                )
+                gen_feats_t = self._gen_model.forward_marginal(rigids_0=gt_bb_rigid, t=t, flow_mask=None, rigids_1=None)
             else:
-                sample_subset = subset.sample(
-                    n_samples, replace=True, random_state=0
-                ).reset_index(drop=True)
+                sample_subset = subset.sample(n_samples, replace=True, random_state=0).reset_index(drop=True)
 
                 # get the features, transform them to Rigid, and extract their translation and rotation.
-                list_feat = [
-                    self._get_csv_row(i, sample_subset)[0] for i in range(n_samples)
-                ]
+                list_feat = [self._get_csv_row(i, sample_subset)[0] for i in range(n_samples)]
                 list_trans_rot = [
-                    extract_trans_rots_mat(
-                        rigid_utils.Rigid.from_tensor_7(feat["rigids_0"])
-                    )
-                    for feat in list_feat
+                    extract_trans_rots_mat(rigid_utils.Rigid.from_tensor_7(feat["rigids_0"])) for feat in list_feat
                 ]
                 list_trans, list_rot = zip(*list_trans_rot)
 
                 # stack them and change them to torch.tensor
-                sample_trans = torch.stack(
-                    [torch.from_numpy(trans) for trans in list_trans]
-                )
+                sample_trans = torch.stack([torch.from_numpy(trans) for trans in list_trans])
                 sample_rot = torch.stack([torch.from_numpy(rot) for rot in list_rot])
 
                 device = sample_rot.device  # TODO: set the device before that...
 
                 # random matrices on S03.
-                rand_rot = torch.tensor(
-                    Rotation.random(n_samples * n_res).as_matrix()
-                ).to(device=device, dtype=sample_rot.dtype)
+                rand_rot = torch.tensor(Rotation.random(n_samples * n_res).as_matrix()).to(
+                    device=device, dtype=sample_rot.dtype
+                )
                 rand_rot = rand_rot.reshape(n_samples, n_res, 3, 3)
                 # rand_rot_axis_angle = matrix_to_axis_angle(rand_rot)
 
                 # random translation
-                rand_trans = torch.randn(size=(n_samples, n_res, 3)).to(
-                    device=device, dtype=sample_trans.dtype
-                )
+                rand_trans = torch.randn(size=(n_samples, n_res, 3)).to(device=device, dtype=sample_trans.dtype)
 
                 # compute the ground cost for OT: sum of the cost for S0(3) and R3.
                 ground_cost = torch.zeros(n_samples, n_samples).to(device)
 
                 for i in range(n_samples):
                     for j in range(i, n_samples):
-                        s03_dist = torch.sum(
-                            so3_relative_angle(sample_rot[i], rand_rot[j])
-                        )
-                        r3_dist = torch.sum(
-                            torch.linalg.norm(sample_trans[i] - rand_trans[j], dim=-1)
-                        )
+                        s03_dist = torch.sum(so3_relative_angle(sample_rot[i], rand_rot[j]))
+                        r3_dist = torch.sum(torch.linalg.norm(sample_trans[i] - rand_trans[j], dim=-1))
                         ground_cost[i, j] = s03_dist**2 + r3_dist**2
                         ground_cost[j, i] = ground_cost[i, j]
 
                 # OT with uniform distributions over the set of pdbs
                 a = pot.unif(n_samples, type_as=ground_cost)
                 b = pot.unif(n_samples, type_as=ground_cost)
-                T = self.ot_fn(
-                    a, b, ground_cost
-                )  # NOTE: `ground_cost` is the squared distance on SE(3)^N.
+                T = self.ot_fn(a, b, ground_cost)  # NOTE: `ground_cost` is the squared distance on SE(3)^N.
 
                 # sample using the plan
                 # pick one random indices for the pdb returned by __getitem__
@@ -618,9 +550,7 @@ class PdbDataset(data.Dataset):
         chain_feats["t"] = t
 
         # Convert all features to tensors.
-        final_feats = tree.map_structure(
-            lambda x: x if torch.is_tensor(x) else torch.tensor(x), chain_feats
-        )
+        final_feats = tree.map_structure(lambda x: x if torch.is_tensor(x) else torch.tensor(x), chain_feats)
         final_feats = du.pad_feats(final_feats, csv_row["modeled_seq_len"])
         if self.is_training:
             return final_feats
@@ -673,20 +603,16 @@ class TrainSampler(data.Sampler):
             self._data_csv["cluster"] = self._data_csv["pdb_name"].map(cluster_lookup)
             num_clusters = len(set(self._data_csv["cluster"]))
             self.sampler_len = num_clusters * self._batch_size
-            self._log.info(
-                f"Training on {num_clusters} clusters. PDBs without clusters: {self._missing_pdbs}"
-            )
+            self._log.info(f"Training on {num_clusters} clusters. PDBs without clusters: {self._missing_pdbs}")
 
             # TODO Make sure seq len is modeled_seq_len
-            self._data_csv["max_batch_examples"] = self._data_csv[
-                "modeled_seq_len"
-            ].apply(lambda x: max(int(max_squared_res // x**2), 1))
+            self._data_csv["max_batch_examples"] = self._data_csv["modeled_seq_len"].apply(
+                lambda x: max(int(max_squared_res // x**2), 1)
+            )
             self._data_csv_group_clusters = self._data_csv.groupby("cluster")
 
         # We are assuming we are indexing based on relative position in the csv (with pandas iloc)
-        assert np.all(
-            self._data_csv["index"].values == np.arange(len(self._data_csv))
-        ), "CSV is not sorted by index."
+        assert np.all(self._data_csv["index"].values == np.arange(len(self._data_csv))), "CSV is not sorted by index."
 
         # breakpoint()
 
@@ -715,34 +641,29 @@ class TrainSampler(data.Sampler):
             return iter(repeated_indices)
         elif self._sample_mode == "cluster_length_batch":
             # Each batch contains multiple clusters of the same length.
-            sampled_clusters = self._data_csv_group_clusters.sample(
-                1, random_state=self.epoch
-            )
+            sampled_clusters = self._data_csv_group_clusters.sample(1, random_state=self.epoch)
             sampled_order = sampled_clusters.groupby("modeled_seq_len").sample(
                 self._batch_size, replace=True, random_state=self.epoch
             )
             return iter(sampled_order["index"].tolist())
         elif self._sample_mode == "cluster_time_batch":
             # Each batch contains multiple time steps of a protein from a cluster.
-            sampled_clusters = self._data_csv_group_clusters.sample(
-                1, random_state=self.epoch
-            )
+            # Sample one cluster, using the same random seed as the epoch.
+            sampled_clusters = self._data_csv_group_clusters.sample(n=1, random_state=self.epoch)
+            # Get indices of each sampled cluster
             dataset_indices = sampled_clusters["index"].tolist()
+            # Repeat the indices BATCH_SIZE times, so we can get a protein from the same cluster BATCH_SIZE times
             repeated_indices = np.repeat(dataset_indices, self._batch_size)
             return iter(repeated_indices.tolist())
         elif self._sample_mode == "cluster_time_batch_v2":
             # Each batch contains multiple time steps of a protein from a cluster.
-            sampled_clusters = self._data_csv_group_clusters.sample(
-                1, random_state=self.epoch
-            )
+            sampled_clusters = self._data_csv_group_clusters.sample(1, random_state=self.epoch)
             dataset_indices = sampled_clusters["index"].tolist()
             max_per_batch = sampled_clusters["max_batch_examples"].tolist()
 
             # Repeat each index to max batch size and pad until self._batch_size with None as indexes
             repeated_indices = []
-            assert (
-                self._batch_size % self._num_gpus == 0
-            ), "Batch size must be divisible by num_gpus"
+            assert self._batch_size % self._num_gpus == 0, "Batch size must be divisible by num_gpus"
 
             # num_gpus = self._batch_size
             # setup_dataloaders(train_loader, use_distributed_sampler=False) Fixes actual batch
@@ -868,8 +789,7 @@ class OldDistributedTrainSampler(data.Sampler):
             rank = dist.get_rank()
         if rank >= num_replicas or rank < 0:
             raise ValueError(
-                "Invalid rank {}, rank should be in the interval"
-                " [0, {}]".format(rank, num_replicas - 1)
+                "Invalid rank {}, rank should be in the interval" " [0, {}]".format(rank, num_replicas - 1)
             )
         self._data_conf = data_conf
         self._dataset = dataset
@@ -919,9 +839,7 @@ class OldDistributedTrainSampler(data.Sampler):
                 indices = np.concatenate(
                     (
                         indices,
-                        np.repeat(indices, math.ceil(padding_size / len(indices)))[
-                            :padding_size
-                        ],
+                        np.repeat(indices, math.ceil(padding_size / len(indices)))[:padding_size],
                     ),
                     axis=0,
                 )

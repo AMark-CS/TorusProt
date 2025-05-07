@@ -45,7 +45,7 @@ class SO3FM:
         self.min_sigma = so3_conf.min_sigma
         self.inference_scaling = so3_conf.inference_scaling
 
-    def sample(self, t: float, n_samples: float = 1):
+    def sample(self, n_samples: float = 1):
         return Rotation.random(n_samples).as_matrix()
 
     def sample_ref(self, n_samples: float = 1):
@@ -68,7 +68,6 @@ class SO3FM:
             rot_t: [..., 3] noised rotation vectors.
             rot_vectorfield: [..., 3] vectorfield of rot_t as a rotation vector.
         """
-        seq_len = rot_0.shape[1]
         n_samples = len(rot_0)
 
         # Sample Unif w.r.t Haar Measure on SO(3)
