@@ -380,7 +380,7 @@ class Experiment:
             return logs
         return 0
 
-    def update_fn(self, data, debug=False):
+    def update_fn(self, data, debug=True):
         """Updates the state using some data and returns metrics."""
         self._optimizer.zero_grad()
         # torch.autograd.set_detect_anomaly(True, check_nan=True)

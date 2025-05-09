@@ -15,8 +15,8 @@ class SO3ConditionalFlowMatcher:
     def vec_log_map(self, x0, x1):
         # get logmap of x_1 from x_0 (direction of the geodesic that shoots from x_0 and lands on x_1)
         # convert to axis angle to compute logmap efficiently
-        rot_x0 = rotmat_to_rotvec(x0)  # rotation vectors for the uniform prior
-        rot_x1 = rotmat_to_rotvec(x1)  # rotation vectors for the data distribution
+        rot_x0 = rotmat_to_rotvec(x0)  # rotation vectors for the data distribution
+        rot_x1 = rotmat_to_rotvec(x1)  # rotation vectors for the uniform
 
         torch.set_default_dtype(torch.float64)
         log_x1 = self.vec_manifold.log_not_from_identity(point=rot_x1, base_point=rot_x0)

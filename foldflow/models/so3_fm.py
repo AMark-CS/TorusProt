@@ -74,8 +74,8 @@ class SO3FM:
         # This corresponds IGSO(3) with high concentration param
         rot_1 = self.sample_ref(n_samples) if rot_1 is None else rot_1
         t = torch.tensor(t).repeat(rot_0.shape[0])
-        rot_0 = torch.from_numpy(rot_0).double()
-        rot_1 = torch.from_numpy(rot_1).double()
+        rot_0 = torch.from_numpy(rot_0).double()  # data distribution
+        rot_1 = torch.from_numpy(rot_1).double()  # uniform prior
         rot_t = self.so3_cfm.sample_xt(rot_0, rot_1, t)
         if self.stochastic_paths:
             epsilon_t = self.compute_sigma_t(t)
@@ -129,10 +129,22 @@ class SO3FM:
         rot_0 = rearrange(rot_0, "t n c d -> (t n) c d", c=3, d=3).double()
         rot_t = rearrange(rot_t, "t n c d -> (t n) c d", c=3, d=3).double()
 
+        # Move rot_t to rot_0, multiplying it by the inverse of rot_0 (that is equivalent to rot_t - rot_0 on SO(3))
+        # which is the relative rotation between the rot_0 and rot_t
         rot_t_minus_0 = rot_0.transpose(-1, -2) @ rot_t
+
         if self.inference_scaling < 0:
+            # If no inference scaling is used compute the vector field following the formula [3] in the FoldFlow1 paper
+            # u_t = log_rt(r0) / t
+            # logmap is computed with the hat operator that produces a skew-symmetric matrix ("velocity vector")
+            # on so(3).
+            # The left multiplication with rot_t transports the "velocity" to the tangent space at rot_t.
             u_t = rot_t @ (log(rot_t_minus_0) / torch.clamp(t[:, None, None], min=-self.inference_scaling))
         else:
+            # If inference scaling is used, take it into account. The scaling is time dependent and is equal to c*t
+            # Therefore, time t cacncel out in the denominator -->
+            # u_t = log_rt(r0) * c*t / t = log_rt(r0) * c
+            # The left multiplication with rot_t transports the "velocity" to the tangent space at rot_t.
             u_t = rot_t @ (log(rot_t_minus_0) * self.inference_scaling)
         rot_t = rearrange(rot_t, "(t n) c d -> t n c d", t=batch_size, c=3, d=3)
         u_t = rearrange(u_t, "(t n) c d -> t n c d", t=batch_size, c=3, d=3)

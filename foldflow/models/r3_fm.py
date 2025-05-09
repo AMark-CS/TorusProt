@@ -120,9 +120,7 @@ class R3FM:
         if flow_mask is not None:
             x_t = self._apply_mask(x_t, x_0, flow_mask[..., None])
 
-            ut = self._apply_mask(
-                ut, torch.zeros_like(ut).to(x_t.device), flow_mask[..., None]
-            )
+            ut = self._apply_mask(ut, torch.zeros_like(ut).to(x_t.device), flow_mask[..., None])
         return x_t, ut
 
     def reverse(
