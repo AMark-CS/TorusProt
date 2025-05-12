@@ -1,7 +1,8 @@
-""" Vectorfield network module.
+"""Vectorfield network module.
 The structure of this file is greatly influenced by SE3 Diffusion by Yim et. al 2023
 Link: https://github.com/jasonkyuyim/se3_diffusion
 """
+
 import functools as fn
 import math
 
@@ -26,12 +27,12 @@ def get_index_embedding(indices, embed_size, max_len=2056):
         positional embedding of shape [N, embed_size]
     """
     K = torch.arange(embed_size // 2, device=indices.device)
-    pos_embedding_sin = torch.sin(
-        indices[..., None] * math.pi / (max_len ** (2 * K[None] / embed_size))
-    ).to(indices.device)
-    pos_embedding_cos = torch.cos(
-        indices[..., None] * math.pi / (max_len ** (2 * K[None] / embed_size))
-    ).to(indices.device)
+    pos_embedding_sin = torch.sin(indices[..., None] * math.pi / (max_len ** (2 * K[None] / embed_size))).to(
+        indices.device
+    )
+    pos_embedding_cos = torch.cos(indices[..., None] * math.pi / (max_len ** (2 * K[None] / embed_size))).to(
+        indices.device
+    )
     pos_embedding = torch.cat([pos_embedding_sin, pos_embedding_cos], axis=-1)
     return pos_embedding
 
@@ -42,9 +43,7 @@ def get_timestep_embedding(timesteps, embedding_dim, max_positions=10000):
     timesteps = timesteps * max_positions
     half_dim = embedding_dim // 2
     emb = math.log(max_positions) / (half_dim - 1)
-    emb = torch.exp(
-        torch.arange(half_dim, dtype=torch.float32, device=timesteps.device) * -emb
-    )
+    emb = torch.exp(torch.arange(half_dim, dtype=torch.float32, device=timesteps.device) * -emb)
     emb = timesteps.float()[:, None] * emb[None, :]
     emb = torch.cat([torch.sin(emb), torch.cos(emb)], dim=1)
     if embedding_dim % 2 == 1:  # zero pad
@@ -63,11 +62,11 @@ class Embedder(nn.Module):
         # Time step embedding
         index_embed_size = self._embed_conf.index_embed_size
         t_embed_size = index_embed_size
-        node_embed_dims = t_embed_size + 1
+        node_embed_dims = t_embed_size + 1  # +1 for fixed mask showing if we flow a residue or keep it fixed
         edge_in = (t_embed_size + 1) * 2
 
         # Sequence index embedding
-        node_embed_dims += index_embed_size
+        node_embed_dims += index_embed_size  # time embeddings + index embeddings of the same size + 1 for fixed mask
         edge_in += index_embed_size
 
         node_embed_size = self._model_conf.node_embed_size
@@ -92,12 +91,8 @@ class Embedder(nn.Module):
             nn.LayerNorm(edge_embed_size),
         )
 
-        self.timestep_embedder = fn.partial(
-            get_timestep_embedding, embedding_dim=self._embed_conf.index_embed_size
-        )
-        self.index_embedder = fn.partial(
-            get_index_embedding, embed_size=self._embed_conf.index_embed_size
-        )
+        self.timestep_embedder = fn.partial(get_timestep_embedding, embedding_dim=self._embed_conf.index_embed_size)
+        self.index_embedder = fn.partial(get_index_embedding, embed_size=self._embed_conf.index_embed_size)
 
     def _cross_concat(self, feats_1d, num_batch, num_res):
         return (
@@ -138,9 +133,7 @@ class Embedder(nn.Module):
 
         # Set time step to epsilon=1e-5 for fixed residues.
         fixed_mask = fixed_mask[..., None]
-        prot_t_embed = torch.tile(
-            self.timestep_embedder(t)[:, None, :], (1, num_res, 1)
-        )
+        prot_t_embed = torch.tile(self.timestep_embedder(t)[:, None, :], (1, num_res, 1))
         prot_t_embed = torch.cat([prot_t_embed, fixed_mask], dim=-1)
         node_feats = [prot_t_embed]
         pair_feats = [self._cross_concat(prot_t_embed, num_batch, num_res)]
@@ -153,6 +146,10 @@ class Embedder(nn.Module):
 
         # Self-conditioning distogram.
         if self._embed_conf.embed_self_conditioning:
+            # Build a distogram of residue relative positions based on the predicted CA positions at the previous epoch
+            # 22 bins are equally spaced in the range [min_bin=1e-5, max_bin=20A angström].
+            # Returns a boolean array of shape [B, N, N, 22], where each entry indicates the distance bin between
+            # CA atoms of corresponding residues.
             sc_dgram = du.calc_distogram(
                 self_conditioning_ca,
                 self._embed_conf.min_bin,
@@ -194,6 +191,7 @@ class VectorFieldNetwork(nn.Module):
         # Frames as [batch, res, 7] tensors.
         bb_mask = input_feats["res_mask"].type(torch.float32)  # [B, N]
         fixed_mask = input_feats["fixed_mask"].type(torch.float32)
+        # Create edge mask to see which edges to construct. It uses torch broadcasting to get dim (B, N, N)
         edge_mask = bb_mask[..., None] * bb_mask[..., None, :]
 
         # Initial embeddings of positonal and relative indices.
@@ -209,9 +207,9 @@ class VectorFieldNetwork(nn.Module):
         # Run main network
         model_out = self.vectorfield(node_embed, edge_embed, input_feats)
 
-        # Psi angle prediction
+        # Psi angle prediction (# angles = (pre_omega, phi, psi, chi1, chi2, chi3, chi4))
         gt_psi = input_feats["torsion_angles_sin_cos"][..., 2, :]
-        psi_pred = self._apply_mask(model_out["psi"], gt_psi, 1 - fixed_mask[..., None])
+        psi_pred = self._apply_mask(aatype_diff=model_out["psi"], aatype_0=gt_psi, diff_mask=1 - fixed_mask[..., None])
 
         pred_out = {
             "psi": psi_pred,
@@ -220,7 +218,7 @@ class VectorFieldNetwork(nn.Module):
         }
         rigids_pred = model_out["final_rigids"]
         pred_out["rigids"] = rigids_pred.to_tensor_7()
-        bb_representations = all_atom.compute_backbone(rigids_pred, psi_pred)
+        bb_representations = all_atom.compute_backbone(bb_rigids=rigids_pred, psi_torsions=psi_pred)
         pred_out["atom37"] = bb_representations[0].to(rigids_pred.device)
         pred_out["atom14"] = bb_representations[-1].to(rigids_pred.device)
         return pred_out

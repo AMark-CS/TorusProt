@@ -91,13 +91,14 @@ def get_csv_row(csv, idx):
     processed_file_path = csv_row["processed_path"]
     chain_feats = _process_csv_row(csv, processed_file_path)
 
+    # Take the first rigid group, which is the backbone one
     gt_bb_rigid = rigid_utils.Rigid.from_tensor_4x4(chain_feats["rigidgroups_0"])[:, 0]
     flowed_mask = np.ones_like(chain_feats["res_mask"])
     if np.sum(flowed_mask) < 1:
         raise ValueError("Must be flowed")
     fixed_mask = 1 - flowed_mask
     chain_feats["fixed_mask"] = fixed_mask
-    chain_feats["rigids_0"] = gt_bb_rigid.to_tensor_7()
+    chain_feats["rigids_0"] = gt_bb_rigid.to_tensor_7()  # rigids_0 are backbone rigids
     chain_feats["sc_ca_t"] = torch.zeros_like(gt_bb_rigid.get_trans())
 
     return chain_feats, gt_bb_rigid, pdb_name, csv_row

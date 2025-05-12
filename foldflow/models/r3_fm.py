@@ -149,7 +149,7 @@ class R3FM:
         if not np.isscalar(t):
             raise ValueError(f"{t} must be a scalar.")
         x_t = self._scale(x_t)
-        perturb = -v_t * dt
+        perturb = -v_t * dt  # get the reversed scaled velocity
 
         if self.stochastic_paths:
             z = noise_scale * np.random.normal(size=v_t.shape)
@@ -161,6 +161,7 @@ class R3FM:
             mask = np.ones(x_t.shape[:-1])
         x_t_1 = x_t + perturb
         if center:
+            # Center positions to avoid possible accumulation of errors
             com = np.sum(x_t_1, axis=-2) / np.sum(mask, axis=-1)[..., None]
             x_t_1 -= com[..., None, :]
         x_t_1 = self._unscale(x_t_1)
