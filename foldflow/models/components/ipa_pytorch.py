@@ -103,15 +103,13 @@ def normal_init_(weights):
 def compute_angles(ca_pos, pts):
     batch_size, num_res, num_heads, num_pts, _ = pts.shape
     calpha_vecs = (ca_pos[:, :, None, :] - ca_pos[:, None, :, :]) + 1e-10
-    calpha_vecs = torch.tile(
-        calpha_vecs[:, :, :, None, None, :], (1, 1, 1, num_heads, num_pts, 1)
-    )
+    calpha_vecs = torch.tile(calpha_vecs[:, :, :, None, None, :], (1, 1, 1, num_heads, num_pts, 1))
     ipa_pts = pts[:, :, None, :, :, :] - torch.tile(
         ca_pos[:, :, None, None, None, :], (1, 1, num_res, num_heads, num_pts, 1)
     )
-    phi_angles = all_atom.calculate_neighbor_angles(
-        calpha_vecs.reshape(-1, 3), ipa_pts.reshape(-1, 3)
-    ).reshape(batch_size, num_res, num_res, num_heads, num_pts)
+    phi_angles = all_atom.calculate_neighbor_angles(calpha_vecs.reshape(-1, 3), ipa_pts.reshape(-1, 3)).reshape(
+        batch_size, num_res, num_res, num_heads, num_pts
+    )
     return phi_angles
 
 
@@ -241,9 +239,7 @@ class EdgeTransition(nn.Module):
             ],
             axis=-1,
         )
-        edge_embed = torch.cat([edge_embed, edge_bias], axis=-1).reshape(
-            batch_size * num_res**2, -1
-        )
+        edge_embed = torch.cat([edge_embed, edge_bias], axis=-1).reshape(batch_size * num_res**2, -1)
         edge_embed = self.final_layer(self.trunk(edge_embed) + edge_embed)
         edge_embed = self.layer_norm(edge_embed)
         edge_embed = edge_embed.reshape(batch_size, num_res, num_res, -1)
@@ -313,10 +309,6 @@ class InvariantPointAttention(nn.Module):
 
         self.softmax = nn.Softmax(dim=-1)
         self.softplus = nn.Softplus()
-        # TODO: Remove after published checkpoint is updated without these weights.
-        self.linear_rbf = Linear(20, 1)
-        self.linear_rbf.weight.requires_grad = False
-        self.linear_rbf.bias.requires_grad = False
 
     def forward(
         self,
@@ -345,90 +337,89 @@ class InvariantPointAttention(nn.Module):
         else:
             z = [z]
 
-        #######################################
-        # Generate scalar and point activations
-        #######################################
-        # [*, N_res, H * C_hidden]
+        ##############################################################
+        # Generate scalar and point activations, using node embeddings
+        ##############################################################
+        # Generate Qs, KVs: [*, N_res, H * C_hidden]
         q = self.linear_q(s)
         kv = self.linear_kv(s)
 
-        # [*, N_res, H, C_hidden]
+        # Reshape/spread Qs across each head; [*, N_res, H, C_hidden]
         q = q.view(q.shape[:-1] + (self.no_heads, -1))
 
-        # [*, N_res, H, 2 * C_hidden]
+        # Reshape/spread KVs across each head: [*, N_res, H, 2 * C_hidden]
         kv = kv.view(kv.shape[:-1] + (self.no_heads, -1))
 
-        # [*, N_res, H, C_hidden]
+        # Separate Ks and Vs: ([*, N_res, H, C_hidden], [*, N_res, H, C_hidden])
         k, v = torch.split(kv, self.c_hidden, dim=-1)
 
-        # [*, N_res, H * P_q * 3]
+        # Get query points, using node embeddings [*, N_res, H * P_q * 3]
         q_pts = self.linear_q_points(s)
 
         # This is kind of clunky, but it's how the original does it
-        # [*, N_res, H * P_q, 3]
+        # Compute transformed query points by multiplying by rigids: [*, N_res, H * P_q, 3]
+        # It's apart of the line 7 in the algorithm (T * q_pts)
         q_pts = torch.split(q_pts, q_pts.shape[-1] // 3, dim=-1)
         q_pts = torch.stack(q_pts, dim=-1)
         q_pts = r[..., None].apply(q_pts)
 
-        # [*, N_res, H, P_q, 3]
+        # Reshape/spread across each head: [*, N_res, H, P_q, 3]
         q_pts = q_pts.view(q_pts.shape[:-2] + (self.no_heads, self.no_qk_points, 3))
 
-        # [*, N_res, H * (P_q + P_v) * 3]
+        # Get key and values points: [*, N_res, H * (P_q + P_v) * 3]
         kv_pts = self.linear_kv_points(s)
 
-        # [*, N_res, H * (P_q + P_v), 3]
+        # Compute transformed KV points [*, N_res, H * (P_q + P_v), 3] (T * kv_pts)
+        # We apply rigids to V points but skip that step when computing the outputs --> all correct
         kv_pts = torch.split(kv_pts, kv_pts.shape[-1] // 3, dim=-1)
         kv_pts = torch.stack(kv_pts, dim=-1)
         kv_pts = r[..., None].apply(kv_pts)
 
-        # [*, N_res, H, (P_q + P_v), 3]
+        # Reshape/spread across each head: [*, N_res, H, (P_q + P_v), 3]
         kv_pts = kv_pts.view(kv_pts.shape[:-2] + (self.no_heads, -1, 3))
 
-        # [*, N_res, H, P_q/P_v, 3]
-        k_pts, v_pts = torch.split(
-            kv_pts, [self.no_qk_points, self.no_v_points], dim=-2
-        )
+        # Separate Ks and Vs points: [*, N_res, H, P_q/P_v, 3]
+        k_pts, v_pts = torch.split(kv_pts, [self.no_qk_points, self.no_v_points], dim=-2)
 
         ##########################
         # Compute attention scores
         ##########################
-        # [*, N_res, N_res, H]
+        # Get bias term (node pair representations). It is the transformed edge_embeddings: [*, N_res, N_res, H]
         b = self.linear_b(z[0])
 
         if _offload_inference:
             z[0] = z[0].cpu()
 
-        # [*, H, N_res, N_res]
+        # Compute attention weights of the scalar inputs Q and K per each head: [*, H, N_res, N_res]
         a = torch.matmul(
             permute_final_dims(q, (1, 0, 2)),  # [*, H, N_res, C_hidden]
             permute_final_dims(k, (1, 2, 0)),  # [*, H, C_hidden, N_res]
         )
-        a *= math.sqrt(1.0 / (3 * self.c_hidden))
-        a += math.sqrt(1.0 / 3) * permute_final_dims(b, (2, 0, 1))
+        a *= math.sqrt(1.0 / (3 * self.c_hidden))  # Normalize to keep variance close to 1
+        a += math.sqrt(1.0 / 3) * permute_final_dims(b, (2, 0, 1))  # Add normalized bias term
 
-        # [*, N_res, N_res, H, P_q, 3]
+        # Compute invariant point attention term. It is the norm of the transformed distance between residues:
+        # use broadcasting --> [*, N_res, N_res, H, P_q, 3]
         pt_displacement = q_pts.unsqueeze(-4) - k_pts.unsqueeze(-5)
         pt_att = pt_displacement**2
 
+        # Sum across all coordinates, apply learnable head weights and normalize to keep variance close to 1
         # [*, N_res, N_res, H, P_q]
         pt_att = sum(torch.unbind(pt_att, dim=-1))
-        head_weights = self.softplus(self.head_weights).view(
-            *((1,) * len(pt_att.shape[:-2]) + (-1, 1))
-        )
-        head_weights = head_weights * math.sqrt(
-            1.0 / (3 * (self.no_qk_points * 9.0 / 2))
-        )
+        head_weights = self.softplus(self.head_weights).view(*((1,) * len(pt_att.shape[:-2]) + (-1, 1)))
+        head_weights = head_weights * math.sqrt(1.0 / (3 * (self.no_qk_points * 9.0 / 2)))
         pt_att = pt_att * head_weights
 
-        # [*, N_res, N_res, H]
+        # Sum across all points: [*, N_res, N_res, H]
         pt_att = torch.sum(pt_att, dim=-1) * (-0.5)
-        # [*, N_res, N_res]
+        # Create mask to see what residues to mask: [*, N_res, N_res]
         square_mask = mask.unsqueeze(-1) * mask.unsqueeze(-2)
         square_mask = self.inf * (square_mask - 1)
 
-        # [*, H, N_res, N_res]
+        # Reshape/spread across each head: [*, H, N_res, N_res]
         pt_att = permute_final_dims(pt_att, (2, 0, 1))
 
+        # Add the point attention term to the scalar attention term: [*, H, N_res, N_res]
         a = a + pt_att
         a = a + square_mask.unsqueeze(-3)
         a = self.softmax(a)
@@ -436,45 +427,44 @@ class InvariantPointAttention(nn.Module):
         ################
         # Compute output
         ################
-        # [*, N_res, H, C_hidden]
+        # Line 9 - compute weighted avg of the scalar values: [*, N_res, H, C_hidden]
         o = torch.matmul(a, v.transpose(-2, -3).to(dtype=a.dtype)).transpose(-2, -3)
 
-        # [*, N_res, H * C_hidden]
+        # Combine all heads: [*, N_res, H * C_hidden]
         o = flatten_final_dims(o, 2)
 
-        # [*, H, 3, N_res, P_v]
+        # Line 10 - compute weighted avg of the point values: [*, H, 3, N_res, P_v]
         o_pt = torch.sum(
-            (
-                a[..., None, :, :, None]
-                * permute_final_dims(v_pts, (1, 3, 0, 2))[..., None, :, :]
-            ),
+            (a[..., None, :, :, None] * permute_final_dims(v_pts, (1, 3, 0, 2))[..., None, :, :]),
             dim=-2,
         )
 
-        # [*, N_res, H, P_v, 3]
+        # Apply inverse rigid: [*, N_res, H, P_v, 3]
         o_pt = permute_final_dims(o_pt, (2, 0, 3, 1))
         o_pt = r[..., None, None].invert_apply(o_pt)
 
-        # [*, N_res, H * P_v]
+        # Compute norms of point outputs and merge heads: [*, N_res, H * P_v]
         o_pt_dists = torch.sqrt(torch.sum(o_pt**2, dim=-1) + self.eps)
         o_pt_norm_feats = flatten_final_dims(o_pt_dists, 2)
 
-        # [*, N_res, H * P_v, 3]
+        # Merge heads of o_pt: [*, N_res, H * P_v, 3]
         o_pt = o_pt.reshape(*o_pt.shape[:-3], -1, 3)
 
         if _offload_inference:
             z[0] = z[0].to(o_pt.device)
 
-        # [*, N_res, H, C_z // 4]
+        # Line 8 - compute weighted avg of pair representations: [*, N_res, H, C_z // 4]
         pair_z = self.down_z(z[0]).to(dtype=a.dtype)
         o_pair = torch.matmul(a.transpose(-2, -3), pair_z)
 
-        # [*, N_res, H * C_z // 4]
+        # Merge heads: [*, N_res, H * C_z // 4]
         o_pair = flatten_final_dims(o_pair, 2)
 
+        # Concatenate all features: [*, N_res, H * C_hidden + H * C_z // 4 + 4 * H * P_v]
+        # and separate x, y, z coordinates of point outputs
         o_feats = [o, *torch.unbind(o_pt, dim=-1), o_pt_norm_feats, o_pair]
 
-        # [*, N_res, C_s]
+        # Compute node feats: [*, N_res, C_s]
         s = self.linear_out(torch.cat(o_feats, dim=-1).to(dtype=z[0].dtype))
 
         return s
@@ -560,7 +550,7 @@ class BackboneUpdate(nn.Module):
         Args:
             [*, N_res, C_s] single representation
         Returns:
-            [*, N_res, 6] update vector
+            [*, N_res, 6] update vector of a quaternion (1, x, y, z) + translation of dim=3
         """
         # [*, 6]
         update = self.linear(s)
@@ -626,13 +616,9 @@ class IpaNetwork(nn.Module):
                 norm_first=False,
             )
 
-            self.trunk[f"seq_tfmr_{b}"] = torch.nn.TransformerEncoder(
-                tfmr_layer, ipa_conf.seq_tfmr_num_layers
-            )
+            self.trunk[f"seq_tfmr_{b}"] = torch.nn.TransformerEncoder(tfmr_layer, ipa_conf.seq_tfmr_num_layers)
             self.trunk[f"post_tfmr_{b}"] = Linear(tfmr_in, ipa_conf.c_s, init="final")
-            self.trunk[f"node_transition_{b}"] = StructureModuleTransition(
-                c=ipa_conf.c_s
-            )
+            self.trunk[f"node_transition_{b}"] = StructureModuleTransition(c=ipa_conf.c_s)
             self.trunk[f"bb_update_{b}"] = BackboneUpdate(ipa_conf.c_s)
 
             if b < ipa_conf.num_blocks - 1 or self.update_edge_all:
@@ -651,35 +637,28 @@ class IpaNetwork(nn.Module):
         flow_mask = (1 - input_feats["fixed_mask"].type(torch.float32)) * node_mask
         edge_mask = node_mask[..., None] * node_mask[..., None, :]
         init_frames = input_feats["rigids_t"].type(torch.float32)
-        curr_rigids = Rigid.from_tensor_7(torch.clone(init_frames))
+        curr_rigids = Rigid.from_tensor_7(torch.clone(init_frames))  # get quats and trans
         init_rigids = Rigid.from_tensor_7(init_frames)
 
         # Main trunk
         curr_rigids = self.scale_rigids(curr_rigids)
-        init_node_embed = init_node_embed * node_mask[..., None]
-        node_embed = init_node_embed * node_mask[..., None]
+        node_embed = init_node_embed * node_mask[..., None]  # Removed redundant masking
         for b in range(self._ipa_conf.num_blocks):
-            ipa_embed = self.trunk[f"ipa_{b}"](
-                node_embed, edge_embed, curr_rigids, node_mask
-            )
+            ipa_embed = self.trunk[f"ipa_{b}"](s=node_embed, z=edge_embed, r=curr_rigids, mask=node_mask)
             ipa_embed *= node_mask[..., None]
             node_embed = self.trunk[f"ipa_ln_{b}"](node_embed + ipa_embed)
-            seq_tfmr_in = torch.cat(
-                [node_embed, self.trunk[f"skip_embed_{b}"](init_node_embed)], dim=-1
-            )
+            seq_tfmr_in = torch.cat([node_embed, self.trunk[f"skip_embed_{b}"](init_node_embed)], dim=-1)
 
-            seq_tfmr_out = self.trunk[f"seq_tfmr_{b}"](
-                seq_tfmr_in, src_key_padding_mask=1 - node_mask
-            )
+            # Use src_key_padding_mask to mask out the padded positions and ignore them in the attention calculation
+            # src_mask would ONLY restrict the attention weights computation
+            seq_tfmr_out = self.trunk[f"seq_tfmr_{b}"](seq_tfmr_in, src_key_padding_mask=1 - node_mask)
+            # Looks like it differs from FrameDiff paper implementation cause they wrote there
+            # that the skip connection should actually be init_node_embed
             node_embed = node_embed + self.trunk[f"post_tfmr_{b}"](seq_tfmr_out)
             node_embed = self.trunk[f"node_transition_{b}"](node_embed)
             node_embed = node_embed * node_mask[..., None]
-            rigid_update = self.trunk[f"bb_update_{b}"](
-                node_embed * flow_mask[..., None]
-            )
-            curr_rigids = curr_rigids.compose_q_update_vec(
-                rigid_update, flow_mask[..., None]
-            )
+            rigid_update = self.trunk[f"bb_update_{b}"](node_embed * flow_mask[..., None])
+            curr_rigids = curr_rigids.compose_q_update_vec(rigid_update, flow_mask[..., None])
 
             if b < self._ipa_conf.num_blocks - 1 or self.update_edge_all:
                 edge_embed = self.trunk[f"edge_transition_{b}"](node_embed, edge_embed)
@@ -688,9 +667,9 @@ class IpaNetwork(nn.Module):
 
         # ipdb.set_trace()
         _, rot_vectorfield = self.flow_matcher.calc_rot_vectorfield(
-            curr_rigids.get_rots().get_rot_mats(),
-            init_rigids.get_rots().get_rot_mats(),
-            t,
+            rot_0=curr_rigids.get_rots().get_rot_mats(),
+            rot_t=init_rigids.get_rots().get_rot_mats(),
+            t=t,
         )
         rot_vectorfield = rot_vectorfield * node_mask[..., None, None]
 

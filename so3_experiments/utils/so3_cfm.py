@@ -1,4 +1,5 @@
 """Copyright (c) Dreamfold."""
+
 import torch
 from scipy.spatial.transform import Rotation
 from geomstats._backend import _backend_config as _config
@@ -6,7 +7,7 @@ from .optimal_transport import SO3OTPlanSampler
 from foldflow.utils.so3_helpers import so3_relative_angle, log
 from foldflow.utils.so3_condflowmatcher import SO3ConditionalFlowMatcher
 from einops import rearrange
-from functorch import vmap
+from torch import vmap
 from foldflow.utils.igso3 import _batch_sample
 
 
@@ -54,9 +55,7 @@ class SO3OptimalTransportConditionalFlowMatcher(SO3ConditionalFlowMatcher):
         [4] Learning with minibatch Wasserstein: asymptotic and gradient properties, Fatras et al.
         """
         x0, x1 = self.ot_sampler.sample_plan(x0.double(), x1.double())
-        return super().sample_location_and_conditional_flow_simple(
-            x0.double(), x1.double()
-        )
+        return super().sample_location_and_conditional_flow_simple(x0.double(), x1.double())
 
 
 class SO3SFM(SO3ConditionalFlowMatcher):
@@ -133,9 +132,7 @@ class SO3SFM(SO3ConditionalFlowMatcher):
         ----------
         [1] SE(3)-Stochastic Flow Matching for Protein Backbone Generation, Bose et al.
         """
-        t = torch.clamp(
-            torch.rand(x0.shape[0]).type_as(x0).to(x0.device), min=0.01, max=0.99
-        )
+        t = torch.clamp(torch.rand(x0.shape[0]).type_as(x0).to(x0.device), min=0.01, max=0.99)
         x0, x1 = self.ot_sampler.sample_plan(x0.double(), x1.double())
         zt = self.sample_zt(x0, x1, t)
         ut = self.compute_conditional_flow(zt, x1, t)

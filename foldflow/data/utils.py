@@ -55,6 +55,8 @@ def parse_chain_feats(chain_feats, scale_factor=1.0):
     ca_idx = residue_constants.atom_order["CA"]
     chain_feats["bb_mask"] = chain_feats["atom_mask"][:, ca_idx]
     bb_pos = chain_feats["atom_positions"][:, ca_idx]
+    # Compute the center (mean) position of the backbone C-alpha atoms
+    # and scale the positions of all atoms to be centered around it.
     bb_center = np.sum(bb_pos, axis=0) / (np.sum(chain_feats["bb_mask"]) + 1e-5)
     centered_pos = chain_feats["atom_positions"] - bb_center[None, None, :]
     scaled_pos = centered_pos / scale_factor

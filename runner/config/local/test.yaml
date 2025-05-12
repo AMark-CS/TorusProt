@@ -4,7 +4,7 @@
 # for the paths for the datasets, the ckpt, wandb, etc.
 
 data:
-  csv_path: ./data/metadata_one.csv
+  csv_path: ./data/2debug_proteins_processed/2debug_proteins_metadata.csv
   cluster_path: ./data/clusters-by-entity-30.txt # or any cluster file
   filtering:
     max_len: 512
@@ -15,13 +15,13 @@ data:
 experiment:
   wandb_dir: ./wandb/
   ckpt_dir: ./ckpt_dir/
-  name: 2f60
+  name: 2f60_1ubq
   separate_rot_loss: True
   use_ddp: False
   num_gpus: 1
   num_loader_workers: 12
   torch_num_threads: 12
-  batch_size: 11
+  batch_size: 5
   num_epoch: 2000
   ckpt_freq: 500
   eval_freq: 250

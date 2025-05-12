@@ -299,7 +299,7 @@ class Experiment:
             name=self._exp_conf.name,
             config=dict(eu.flatten_dict(conf_dict)),
             dir=self._wandb_conf.dir,
-            id=self._exp_conf.run_id,
+            id=self._exp_conf.run_id,  # wandb.util.generate_id(),
             tags=self._wandb_conf.tags,
             group=self._wandb_conf.group,
             mode="offline" if self._wandb_conf.offline else "online",
@@ -380,7 +380,7 @@ class Experiment:
             return logs
         return 0
 
-    def update_fn(self, data, debug=False):
+    def update_fn(self, data, debug=True):
         """Updates the state using some data and returns metrics."""
         self._optimizer.zero_grad()
         # torch.autograd.set_detect_anomaly(True, check_nan=True)
@@ -485,7 +485,7 @@ class Experiment:
                     "rotation_loss": aux_data["rot_loss"],
                     "translation_loss": aux_data["trans_loss"],
                     "bb_atom_loss": aux_data["bb_atom_loss"],
-                    "dist_mat_loss": aux_data["batch_dist_mat_loss"],
+                    "dist_mat_loss": aux_data["dist_mat_loss"],
                     "batch_size": aux_data["examples_per_step"],
                     "res_length": aux_data["res_length"],
                     "examples_per_sec": example_per_sec,
@@ -538,8 +538,6 @@ class Experiment:
 
                 wandb.log(wandb_logs, step=self.trained_steps)
 
-            # Debug logging of a protein visualization + its prediction
-
             if torch.isnan(loss):
                 if self._use_wandb:
                     wandb.alert(
@@ -578,7 +576,7 @@ class Experiment:
                 noise_scale=noise_scale,
                 context=context,
             )
-            final_prot = infer_out["prot_traj"][0]
+            final_prot = infer_out["prot_traj"][0]  # take the 1st point of the reversed trajectory
             for i in range(batch_size):
                 num_res = int(np.sum(res_mask[i]).item())
                 unpad_fixed_mask = fixed_mask[i][res_mask[i]]
@@ -632,7 +630,7 @@ class Experiment:
 
     def _self_conditioning(self, batch):
         model_sc = self.model(batch)
-        batch["sc_ca_t"] = model_sc["rigids"][..., 4:]
+        batch["sc_ca_t"] = model_sc["rigids"][..., 4:]  # positions of CA atoms == translations of the backbone
         return batch
 
     def loss_fn(self, batch):
@@ -681,6 +679,10 @@ class Experiment:
             loss_mask.sum(dim=-1) + 1e-10
         )
 
+        # Translation loss = translation vectorfield loss + translation x0 loss
+        # We take the translation vectorfield loss when the flow is already going --> for t > 0 (or some threshold)
+        # Otherwise we treat the prediction as reconstruction of the data distribution x0 --> use trans_x0 loss
+        # at t <= 0 (or some threshold)
         trans_loss = trans_vectorfield_loss * (batch["t"] > self._exp_conf.trans_x0_threshold) + trans_x0_loss * (
             batch["t"] <= self._exp_conf.trans_x0_threshold
         )
@@ -695,10 +697,10 @@ class Experiment:
         pred_rot_v_t = rearrange(pred_rot_v_t, "t n c d -> (t n) c d", c=3, d=3)
         try:
             rot_t = rot_t.double()
-            gt_at_id = pt_to_identity(rot_t, gt_rot_u_t)
-            gt_rot_u_t = hat_inv(gt_at_id)
+            gt_at_id = pt_to_identity(R=rot_t, v=gt_rot_u_t)
+            gt_rot_u_t = hat_inv(gt_at_id)  # get gt rotational vector in axis-angle representation
             pred_at_id = pt_to_identity(rot_t, pred_rot_v_t)
-            pred_rot_v_t = hat_inv(pred_at_id)
+            pred_rot_v_t = hat_inv(pred_at_id)  # get pred rotational vector in axis-angle representation
         except ValueError as e:
             self._log.info(
                 f"Skew symmetric error gt {((gt_at_id + gt_at_id.transpose(-1, -2))**2).mean()} "
@@ -739,10 +741,10 @@ class Experiment:
             rot_loss *= batch["t"] > self._exp_conf.rot_loss_t_threshold
         rot_loss *= int(self._fm_conf.flow_rot)
 
-        # Backbone atom loss
+        # Backbone atom loss (use 5 main heavy backbone atoms)
         pred_atom37 = model_out["atom37"][:, :, :5]
         gt_rigids = ru.Rigid.from_tensor_7(batch["rigids_0"].type(torch.float32))
-        gt_psi = batch["torsion_angles_sin_cos"][..., 2, :]
+        gt_psi = batch["torsion_angles_sin_cos"][..., 2, :]  # angles = (pre_omega, phi, psi, chi1, chi2, chi3, chi4)
         gt_atom37, atom37_mask, _, _ = all_atom.compute_backbone(gt_rigids, gt_psi)
         gt_atom37 = gt_atom37[:, :, :5]
         atom37_mask = atom37_mask[:, :, :5]
@@ -753,9 +755,11 @@ class Experiment:
         bb_atom_loss = torch.sum(
             (pred_atom37 - gt_atom37) ** 2 * bb_atom_loss_mask[..., None],
             dim=(-1, -2, -3),
-        ) / (bb_atom_loss_mask.sum(dim=(-1, -2)) + 1e-10)
+        ) / (
+            bb_atom_loss_mask.sum(dim=(-1, -2)) + 1e-10
+        )  # MSE on 5 heavy backbone atom coords
         bb_atom_loss *= self._exp_conf.bb_atom_loss_weight
-        bb_atom_loss *= batch["t"] < self._exp_conf.bb_atom_loss_t_filter
+        bb_atom_loss *= batch["t"] < self._exp_conf.bb_atom_loss_t_filter  # only use for t < 0.25
         bb_atom_loss *= self._exp_conf.aux_loss_weight
 
         # Pairwise distance loss
@@ -818,6 +822,9 @@ class Experiment:
         return (trans_vectorfield * cond_var + trans_t) / torch.exp(-1 / 2 * beta_t)
 
     def _set_t_feats(self, feats, t, t_placeholder):
+        """
+        Set time and scaling features for the model, using t_placeholder as a mask (as far as I understand).
+        """
         feats["t"] = t * t_placeholder
         (
             rot_vectorfield_scaling,
@@ -904,18 +911,19 @@ class Experiment:
                 # Calculate x0 prediction derived from vectorfield predictions.
                 gt_trans_0 = sample_feats["rigids_t"][..., 4:]
                 pred_trans_0 = rigid_pred[..., 4:]
+                # Use masks to take care of the fixed/flowed residues
                 trans_pred_0 = flow_mask[..., None] * pred_trans_0 + fixed_mask[..., None] * gt_trans_0
                 psi_pred = model_out["psi"]
                 if aux_traj:
                     atom37_0 = all_atom.compute_backbone(ru.Rigid.from_tensor_7(rigid_pred), psi_pred)[0]
                     all_bb_0_pred.append(du.move_to_np(atom37_0))
                     all_trans_0_pred.append(du.move_to_np(trans_pred_0))
-                atom37_t = all_atom.compute_backbone(rigids_t, psi_pred)[0]
+                atom37_t = all_atom.compute_backbone(rigids_t, psi_pred)[0]  # take only positions of the bb atoms
                 all_bb_prots.append(du.move_to_np(atom37_t))
 
         # Flip trajectory so that it starts from t=0.
         # This helps visualization.
-        flip = lambda x: np.flip(np.stack(x), (0,))
+        flip = lambda x: np.flip(np.stack(x), axis=(0,))
         all_bb_prots = flip(all_bb_prots)
         if aux_traj:
             all_rigids = flip(all_rigids)

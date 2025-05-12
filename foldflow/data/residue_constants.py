@@ -35,9 +35,9 @@ chi_angles_atoms = {
     "ALA": [],
     # Chi5 in arginine is always 0 +- 5 degrees, so ignore it.
     "ARG": [
-        ["N", "CA", "CB", "CG"],
-        ["CA", "CB", "CG", "CD"],
-        ["CB", "CG", "CD", "NE"],
+        ["N", "CA", "CB", "CG"],  # last atom is the atom of the torsion angle definition
+        ["CA", "CB", "CG", "CD"],  # so this atom is used to measure the dihedral angle of rotation
+        ["CB", "CG", "CD", "NE"],  # around the axis defined by the first 3 atoms
         ["CG", "CD", "NE", "CZ"],
     ],
     "ASN": [["N", "CA", "CB", "CG"], ["CA", "CB", "CG", "OD1"]],
@@ -412,15 +412,13 @@ van_der_waals_radius = {
 }
 
 Bond = collections.namedtuple("Bond", ["atom1_name", "atom2_name", "length", "stddev"])
-BondAngle = collections.namedtuple(
-    "BondAngle", ["atom1_name", "atom2_name", "atom3name", "angle_rad", "stddev"]
-)
+BondAngle = collections.namedtuple("BondAngle", ["atom1_name", "atom2_name", "atom3name", "angle_rad", "stddev"])
 
 
 @functools.lru_cache(maxsize=None)
-def load_stereo_chemical_props() -> Tuple[
-    Mapping[str, List[Bond]], Mapping[str, List[Bond]], Mapping[str, List[BondAngle]]
-]:
+def load_stereo_chemical_props() -> (
+    Tuple[Mapping[str, List[Bond]], Mapping[str, List[Bond]], Mapping[str, List[BondAngle]]]
+):
     """Load stereo_chemical_props.txt into a nice structure.
 
     Load literature values for bond lengths and bond angles and translate
@@ -432,9 +430,7 @@ def load_stereo_chemical_props() -> Tuple[
       residue_virtual_bonds: Dict that maps resname -> list of Bond tuples.
       residue_bond_angles: Dict that maps resname -> list of BondAngle tuples.
     """
-    stereo_chemical_props_path = os.path.join(
-        os.path.dirname(os.path.abspath(__file__)), "stereo_chemical_props.txt"
-    )
+    stereo_chemical_props_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "stereo_chemical_props.txt")
     with open(stereo_chemical_props_path, "rt") as f:
         stereo_chemical_props = f.read()
     lines_iter = iter(stereo_chemical_props.splitlines())
@@ -492,25 +488,15 @@ def load_stereo_chemical_props() -> Tuple[
             # Compute distance between atom1 and atom3 using the law of cosines
             # c^2 = a^2 + b^2 - 2ab*cos(gamma).
             gamma = ba.angle_rad
-            length = np.sqrt(
-                bond1.length**2
-                + bond2.length**2
-                - 2 * bond1.length * bond2.length * np.cos(gamma)
-            )
+            length = np.sqrt(bond1.length**2 + bond2.length**2 - 2 * bond1.length * bond2.length * np.cos(gamma))
 
             # Propagation of uncertainty assuming uncorrelated errors.
             dl_outer = 0.5 / length
             dl_dgamma = (2 * bond1.length * bond2.length * np.sin(gamma)) * dl_outer
             dl_db1 = (2 * bond1.length - 2 * bond2.length * np.cos(gamma)) * dl_outer
             dl_db2 = (2 * bond2.length - 2 * bond1.length * np.cos(gamma)) * dl_outer
-            stddev = np.sqrt(
-                (dl_dgamma * ba.stddev) ** 2
-                + (dl_db1 * bond1.stddev) ** 2
-                + (dl_db2 * bond2.stddev) ** 2
-            )
-            residue_virtual_bonds[resname].append(
-                Bond(ba.atom1_name, ba.atom3name, length, stddev)
-            )
+            stddev = np.sqrt((dl_dgamma * ba.stddev) ** 2 + (dl_db1 * bond1.stddev) ** 2 + (dl_db2 * bond2.stddev) ** 2)
+            residue_virtual_bonds[resname].append(Bond(ba.atom1_name, ba.atom3name, length, stddev))
 
     return (residue_bonds, residue_virtual_bonds, residue_bond_angles)
 
@@ -705,9 +691,7 @@ restypes_with_x = restypes + ["X"]
 restype_order_with_x = {restype: i for i, restype in enumerate(restypes_with_x)}
 
 
-def sequence_to_onehot(
-    sequence: str, mapping: Mapping[str, int], map_unknown_to_x: bool = False
-) -> np.ndarray:
+def sequence_to_onehot(sequence: str, mapping: Mapping[str, int], map_unknown_to_x: bool = False) -> np.ndarray:
     """Maps the given sequence into a one-hot encoded matrix.
 
     Args:
@@ -851,8 +835,7 @@ ID_TO_HHBLITS_AA = {
 
 restypes_with_x_and_gap = restypes + ["X", "-"]
 MAP_HHBLITS_AATYPE_TO_OUR_AATYPE = tuple(
-    restypes_with_x_and_gap.index(ID_TO_HHBLITS_AA[i])
-    for i in range(len(restypes_with_x_and_gap))
+    restypes_with_x_and_gap.index(ID_TO_HHBLITS_AA[i]) for i in range(len(restypes_with_x_and_gap))
 )
 
 
@@ -901,14 +884,9 @@ chi_atom_2_one_hot = chi_angle_atom(2)
 
 # An array like chi_angles_atoms but using indices rather than names.
 chi_angles_atom_indices = [chi_angles_atoms[restype_1to3[r]] for r in restypes]
-chi_angles_atom_indices = tree.map_structure(
-    lambda atom_name: atom_order[atom_name], chi_angles_atom_indices
-)
+chi_angles_atom_indices = tree.map_structure(lambda atom_name: atom_order[atom_name], chi_angles_atom_indices)
 chi_angles_atom_indices = np.array(
-    [
-        chi_atoms + ([[0, 0, 0, 0]] * (4 - len(chi_atoms)))
-        for chi_atoms in chi_angles_atom_indices
-    ]
+    [chi_atoms + ([[0, 0, 0, 0]] * (4 - len(chi_atoms))) for chi_atoms in chi_angles_atom_indices]
 )
 
 # Mapping from (res_name, atom_name) pairs to the atom's chi group index
@@ -967,9 +945,7 @@ def _make_rigid_group_constants():
 
     for restype, restype_letter in enumerate(restypes):
         resname = restype_1to3[restype_letter]
-        atom_positions = {
-            name: np.array(pos) for name, _, pos in rigid_group_atom_positions[resname]
-        }
+        atom_positions = {name: np.array(pos) for name, _, pos in rigid_group_atom_positions[resname]}
 
         # backbone to backbone is the identity transform
         restype_rigid_group_default_frame[restype, 0, :, :] = np.eye(4)

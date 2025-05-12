@@ -95,7 +95,9 @@ def exp(A):
 
 # Exponential map from tangent space at R0 to SO(3)
 def expmap(R0, tangent):
+    # Get the skew-symmetric part of the tangent vector at R0, by moving it back to the identity point: R^-1 @ tangent
     skew_sym = torch.einsum("...ij,...ik->...jk", R0, tangent)
+    # Compute the expmap that gives a new point on SO(3): expmap(R, X) = R * exp(X)
     return torch.einsum("...ij,...jk->...ik", R0, exp(skew_sym))
 
 
@@ -327,6 +329,7 @@ def hat_inv(h: torch.Tensor) -> torch.Tensor:
 
 
 # Parallel Transport a matrix v at point R to the Tangent Space at identity
+# v is supposed to be in the tangent space at R -> get a skew-symmetric matrix on so(3)
 def pt_to_identity(R, v):
     return torch.transpose(R, dim0=-2, dim1=-1) @ v
 

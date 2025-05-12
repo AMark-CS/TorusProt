@@ -2,7 +2,7 @@
 defaults:
   - data: data_test
   - flow_matcher: fm_test
-  - model: bench_test
+  - model: ff2
   - experiment: exp_test
   - local: test
   - wandb: default
