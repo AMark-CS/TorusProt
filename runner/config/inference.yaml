@@ -9,7 +9,7 @@ experiment:
 
 flow_matcher:
   so3:
-    inference_scaling: 10.0se3-fm
+    inference_scaling: 10.0
 
 inference:
   name: null
