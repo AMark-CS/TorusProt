@@ -372,7 +372,7 @@ class Experiment:
             self._log.info(f"Using device: {device}")
             self._model = self.model.to(device)
 
-        self._model.train()
+        self._model.train(True) if self._model.__class__.__name__ == "FF2Model" else self._model.train()
         (
             train_loader,
             valid_loader,
@@ -396,7 +396,7 @@ class Experiment:
             return logs
         return 0
 
-    def update_fn(self, data, debug=True):
+    def update_fn(self, data, debug=False):
         """Updates the state using some data and returns metrics."""
         self._optimizer.zero_grad()
         # torch.autograd.set_detect_anomaly(True, check_nan=True)
