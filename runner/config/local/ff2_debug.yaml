@@ -4,7 +4,7 @@
 # for the paths for the datasets, the ckpt, wandb, etc.
 
 data:
-  csv_path: ./data/2debug_proteins_processed/2debug_proteins_metadata.csv
+  csv_path: ./data/metadata_one.csv
   cluster_path: ./data/clusters-by-entity-30.txt # or any cluster file
   filtering:
     max_len: 512
@@ -13,9 +13,9 @@ data:
   cache_dataset_in_memory: False # If True load from mem. If False, load from disk (LMDB).
   cache_path: ./cache/  # Where to save the LMDB cache.
 experiment:
-  name: ff2_2f60_1ubq
+  name: ff2_2f60
   wandb_dir: ./wandb/
-  ckpt_dir: ./ckpt_dir/
+  ckpt_dir: ./ckpt_dir
   separate_rot_loss: True
   use_ddp: False
   num_gpus: 1
