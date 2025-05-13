@@ -64,12 +64,11 @@ class FF2Model(nn.Module):
             dependencies.trunk_to_decoder_network,
             dependencies.time_embedder,
         )
+
     @classmethod
     def from_ckpt(cls, ckpt: Dict[str, torch.Tensor], deps: FF2Dependencies):
         _prefix_to_remove = "vectorfield_network."
-        ckpt["state_dict"] = {
-            k.replace(_prefix_to_remove, ""): v for k, v in ckpt["state_dict"].items()
-        }
+        ckpt["state_dict"] = {k.replace(_prefix_to_remove, ""): v for k, v in ckpt["state_dict"].items()}
         model = cls.from_dependencies(deps)
         ckpt_lm_name = ckpt["esm_model"]
         assert (
@@ -78,7 +77,7 @@ class FF2Model(nn.Module):
         cls._add_esm_to_ckpt(model, ckpt)
         model.load_state_dict(ckpt["state_dict"])
         return model
-    
+
     @staticmethod
     def _add_esm_to_ckpt(model, ckpt: Dict[str, torch.Tensor]) -> None:
         for k, v in model.seq_encoder.state_dict().items():
@@ -92,7 +91,7 @@ class FF2Model(nn.Module):
         t: torch.Tensor,
         res_mask: torch.Tensor,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
-        _ ,rot_vectorfield = self.flow_matcher.calc_rot_vectorfield(
+        _, rot_vectorfield = self.flow_matcher.calc_rot_vectorfield(
             pred_rigids.get_rots().get_rot_mats(),
             init_rigids.get_rots().get_rot_mats(),
             t,
@@ -120,9 +119,7 @@ class FF2Model(nn.Module):
             return torch.ones_like(aatype)
 
         pattern = torch.zeros_like(aatype)
-        rows_to_mask = (
-            torch.rand(aatype.shape[0]) < self.config.model.p_mask_sequence
-        ).to(aatype.device)
+        rows_to_mask = (torch.rand(aatype.shape[0]) < self.config.model.p_mask_sequence).to(aatype.device)
         pattern[rows_to_mask] = 1
         return pattern
 
@@ -146,9 +143,7 @@ class FF2Model(nn.Module):
         self._is_conditional_generation = False
         super().train(is_training)
 
-    def forward(
-        self, batch: Dict[str, torch.Tensor]
-    ) -> Dict[str, torch.Tensor]:  # TODO: verify the return type.
+    def forward(self, batch: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:  # TODO: verify the return type.
         device = batch["rigids_t"].device
         init_rigids = ru.Rigid.from_tensor_7(batch["rigids_t"])
         t = batch["t"]
@@ -167,9 +162,7 @@ class FF2Model(nn.Module):
         )
         seq_emb_s, seq_emb_z = seq_emb_s.to(device), seq_emb_z.to(device)
         # Processing of the sequence emb (trainable). # LN and Lin. layers.
-        seq_emb_s, seq_emb_z = self.sequence_to_trunk_network(
-            seq_emb_s, seq_emb_z, batch["seq_idx"], batch["res_mask"]
-        )
+        seq_emb_s, seq_emb_z = self.sequence_to_trunk_network(seq_emb_s, seq_emb_z, batch["seq_idx"], batch["res_mask"])
 
         # Structure representations.
         bb_encoder_output = self.bb_encoder(
@@ -191,19 +184,13 @@ class FF2Model(nn.Module):
         # Representations combiner
         single_representation = {"bb": bb_emb_s, "seq": seq_emb_s}
         pair_representation = {"bb": bb_emb_z, "seq": seq_emb_z}
-        single_embed, pair_embed = self.combiner_network(
-            single_representation, pair_representation
-        )
+        single_embed, pair_embed = self.combiner_network(single_representation, pair_representation)
 
         # Evoformer or linear or identity.
-        single_embed, pair_embed = self.trunk_network(
-            single_embed, pair_embed, mask=batch["res_mask"].float()
-        )
+        single_embed, pair_embed = self.trunk_network(single_embed, pair_embed, mask=batch["res_mask"].float())
 
         # Update representations dim for decoder.
-        single_embed, pair_embed = self.trunk_to_decoder_network(
-            single_embed, pair_embed
-        )
+        single_embed, pair_embed = self.trunk_to_decoder_network(single_embed, pair_embed)
 
         single_embed = 0.5 * (single_embed + init_single_embed)
         pair_embed = 0.5 * (pair_embed + init_pair_embed)
@@ -230,9 +217,7 @@ class FF2Model(nn.Module):
             psi = psi * (1 - mask) + gt_psi * mask
 
         res_mask = batch["res_mask"].type(torch.float32)
-        rot_vectorfield, trans_vectorfield = self._get_vectorfields(
-            rigids_updated, init_rigids, t, res_mask
-        )
+        rot_vectorfield, trans_vectorfield = self._get_vectorfields(rigids_updated, init_rigids, t, res_mask)
         model_out: Dict[str, torch.Tensor] = {}
         model_out["rot_vectorfield"] = rot_vectorfield
         model_out["trans_vectorfield"] = trans_vectorfield

@@ -44,11 +44,7 @@ def process_chain(design_pdb_feats):
     chain_feats = data_transforms.make_atom14_masks(chain_feats)
     chain_feats = data_transforms.make_atom14_positions(chain_feats)
     chain_feats = data_transforms.atom37_to_torsion_angles()(chain_feats)
-    seq_idx = (
-        design_pdb_feats["residue_index"]
-        - np.min(design_pdb_feats["residue_index"])
-        + 1
-    )
+    seq_idx = design_pdb_feats["residue_index"] - np.min(design_pdb_feats["residue_index"]) + 1
     chain_feats["seq_idx"] = seq_idx
     chain_feats["res_mask"] = design_pdb_feats["bb_mask"]
     chain_feats["residue_index"] = design_pdb_feats["residue_index"]
@@ -92,9 +88,7 @@ class Sampler:
         # Set-up accelerator
         if torch.cuda.is_available():
             if self._infer_conf.gpu_id is None:
-                available_gpus = "".join(
-                    [str(x) for x in GPUtil.getAvailable(order="memory", limit=8)]
-                )
+                available_gpus = "".join([str(x) for x in GPUtil.getAvailable(order="memory", limit=8)])
                 self.device = f"cuda:{available_gpus[0]}"
             else:
                 self.device = f"cuda:{self._infer_conf.gpu_id}"
@@ -120,16 +114,15 @@ class Sampler:
         self._log.info(f"Saving inference config to {config_path}")
 
         # Load models and experiment
-        weights_pkl = du.read_pkl(
-            self._weights_path, use_torch=True, map_location=self.device
-        )
+        weights_pkl = du.read_pkl(self._weights_path, use_torch=True, map_location=self.device)
         if conf.model.model_name == "ff1":
             self._load_ckpt_ff1(weights_pkl, conf_overrides)
         else:
             deps = FF2Dependencies(conf)
-            self.model = FF2Model.from_ckpt(weights_pkl, deps)
+            # self.model = FF2Model.from_ckpt(weights_pkl, deps)
             self.flow_matcher = deps.flow_matcher
-            self.exp = train.Experiment(conf=self._conf, model=self.model)
+            self.exp = train.Experiment(conf=self._conf, model="ff2")
+            self.model = self.exp.model
         self.model = self.model.to(self.device)
         self.model.eval()
         self._folding_model = esm.pretrained.esmfold_v1().eval()
@@ -143,12 +136,8 @@ class Sampler:
         # Merge base experiment config with checkpoint config.
         try:
             model_conf = weights_pkl["conf"].model
-            model_conf = {
-                k.replace("diffuser", "flow_matcher"): v for k, v in model_conf
-            }
-            self._conf.model = OmegaConf.merge(
-                self._conf.model, weights_pkl["conf"].model
-            )
+            model_conf = {k.replace("diffuser", "flow_matcher"): v for k, v in model_conf}
+            self._conf.model = OmegaConf.merge(self._conf.model, weights_pkl["conf"].model)
         except (AttributeError, KeyError):
             print("Checkpoint does not have model config. Skipping merge.")
 
@@ -164,10 +153,7 @@ class Sampler:
         # Remove module prefix if it exists.
         model_weights = weights_pkl["model"]
         model_weights = {k.replace("module.", ""): v for k, v in model_weights.items()}
-        model_weights = {
-            k.replace("score_model.", "vectorfield."): v
-            for k, v in model_weights.items()
-        }
+        model_weights = {k.replace("score_model.", "vectorfield."): v for k, v in model_weights.items()}
         self.model.load_state_dict(model_weights)
         self.flow_matcher = self.exp.flow_matcher
 
@@ -204,9 +190,7 @@ class Sampler:
                 pdb_path = traj_paths["sample_path"]
                 sc_output_dir = os.path.join(sample_dir, "self_consistency")
                 os.makedirs(sc_output_dir, exist_ok=True)
-                shutil.copy(
-                    pdb_path, os.path.join(sc_output_dir, os.path.basename(pdb_path))
-                )
+                shutil.copy(pdb_path, os.path.join(sc_output_dir, os.path.basename(pdb_path)))
                 _ = self.run_self_consistency(sc_output_dir, pdb_path, motif_mask=None)
                 self._log.info(f"Done sample {sample_i}: {pdb_path}")
 
@@ -248,12 +232,8 @@ class Sampler:
         # Use b-factors to specify which residues are flowed.
         b_factors = np.tile((flow_mask * 100)[:, None], (1, 37))
 
-        sample_path = au.write_prot_to_pdb(
-            bb_prot_traj[0], sample_path, b_factors=b_factors
-        )
-        prot_traj_path = au.write_prot_to_pdb(
-            bb_prot_traj, prot_traj_path, b_factors=b_factors
-        )
+        sample_path = au.write_prot_to_pdb(bb_prot_traj[0], sample_path, b_factors=b_factors)
+        prot_traj_path = au.write_prot_to_pdb(bb_prot_traj, prot_traj_path, b_factors=b_factors)
         x0_traj_path = au.write_prot_to_pdb(x0_traj, x0_traj_path, b_factors=b_factors)
         return {
             "sample_path": sample_path,
@@ -314,9 +294,7 @@ class Sampler:
             pmpnn_args.append(str(self._infer_conf.gpu_id))
         while ret < 0:
             try:
-                process = subprocess.Popen(
-                    pmpnn_args, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT
-                )
+                process = subprocess.Popen(pmpnn_args, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
                 ret = process.wait()
             except Exception as e:
                 num_tries += 1
@@ -359,9 +337,7 @@ class Sampler:
                 sample_seq,
                 sample_seq,
             )
-            rmsd = metrics.calc_aligned_rmsd(
-                sample_feats["bb_positions"], esmf_feats["bb_positions"]
-            )
+            rmsd = metrics.calc_aligned_rmsd(sample_feats["bb_positions"], esmf_feats["bb_positions"])
             if motif_mask is not None:
                 sample_motif = sample_feats["bb_positions"][motif_mask]
                 of_motif = esmf_feats["bb_positions"][motif_mask]
@@ -419,9 +395,7 @@ class Sampler:
             **ref_sample,
         }
         # Add batch dimension and move to GPU.
-        init_feats = tree.map_structure(
-            lambda x: x if torch.is_tensor(x) else torch.tensor(x), init_feats
-        )
+        init_feats = tree.map_structure(lambda x: x if torch.is_tensor(x) else torch.tensor(x), init_feats)
         init_feats = tree.map_structure(lambda x: x[None].to(self.device), init_feats)
 
         # Run inference

@@ -31,18 +31,15 @@ from foldflow.data import all_atom, pdb_data_loader
 from foldflow.data import utils as du
 from foldflow.models import se3_fm
 from foldflow.models.components import network
+from foldflow.models.ff2flow.flow_model import FF2Model
+from foldflow.models.ff2flow.ff2_dependencies import FF2Dependencies
 from openfold.utils import rigid_utils as ru
 from tools.analysis import metrics
 from tools.analysis import utils as au
 
 
 class Experiment:
-    def __init__(
-        self,
-        *,
-        conf: DictConfig,
-        model=None,
-    ):
+    def __init__(self, *, conf: DictConfig):
         """Initialize experiment.
 
         Args:
@@ -100,32 +97,49 @@ class Experiment:
                 self._use_wandb = False
                 # self._exp_conf.full_ckpt_dir = None
 
-        ckpt_model, ckpt_opt = self.handle_warmstart(conf)
+        ckpt_pkl, ckpt_opt = self.handle_warmstart(conf)
 
         if self._use_ddp and self.fabric.global_rank != 0:
             self._exp_conf.full_ckpt_dir = None
 
         # Initialize experiment objects
         self._flow_matcher = se3_fm.SE3FlowMatcher(self._fm_conf)
-        self._model = model
-        if self._model is None:
+        # If model is "ff1", use the default FoldFlow1 model - VectorFieldNetwork (with IPA)
+        if self._model_conf.model_name == "ff1":
             self._model = network.VectorFieldNetwork(self._model_conf, self.flow_matcher)
-            if ckpt_model is not None:
+
+            # Load a checkpoint for the model if available
+            if ckpt_pkl is not None:
+                ckpt_model = ckpt_pkl["model"]
                 ckpt_model = {k.replace("module.", ""): v for k, v in ckpt_model.items()}
                 ckpt_model = {k.replace("score_model.", "vectorfield."): v for k, v in ckpt_model.items()}
                 self._model.load_state_dict(ckpt_model, strict=True)
 
-            num_parameters = sum(p.numel() for p in self._model.parameters())
-            self._exp_conf.num_parameters = num_parameters
-            self._log.info(f"Number of model parameters {num_parameters}")
-            self._optimizer = torch.optim.Adam(self._model.parameters(), lr=self._exp_conf.learning_rate)
-            if ckpt_opt is not None:
-                self._optimizer.load_state_dict(ckpt_opt)
-                if conf.experiment.use_gpu:
-                    for state in self._optimizer.state.values():
-                        for k, v in state.items():
-                            if isinstance(v, torch.Tensor):
-                                state[k] = v.cuda()
+        # If the model is "ff2", use FoldFlow2 model - Structure (IPA) + Sequence (ESM) encoders,
+        # transformer multimodal fusion trunk, and IPA decoder.
+        elif self._model_conf.model_name == "ff2":
+            deps = FF2Dependencies(conf)
+            if ckpt_pkl is not None:
+                self._model = FF2Model.from_ckpt(ckpt_pkl, deps)
+            else:
+                self._model = FF2Model.from_dependencies(deps)
+        else:
+            raise ValueError(f"Unknown model {self._model}. Please use either 'ff1' or 'ff2'.")
+
+        # Log model info
+        num_parameters = sum(p.numel() for p in self._model.parameters())
+        self._exp_conf.num_parameters = num_parameters
+        self._log.info(f"Number of model parameters {num_parameters}")
+
+        # Create optimizer and possibly load a checkpoint for it if available
+        self._optimizer = torch.optim.Adam(self._model.parameters(), lr=self._exp_conf.learning_rate)
+        if ckpt_opt is not None:
+            self._optimizer.load_state_dict(ckpt_opt)
+            if conf.experiment.use_gpu:
+                for state in self._optimizer.state.values():
+                    for k, v in state.items():
+                        if isinstance(v, torch.Tensor):
+                            state[k] = v.cuda()
 
         if self._exp_conf.full_ckpt_dir is not None:
             # Set-up checkpoint location
@@ -136,6 +150,7 @@ class Experiment:
             self._log.info(f"Checkpoints saved to: {ckpt_dir}")
         else:
             self._log.info("Checkpoint not being saved.")
+
         if self._exp_conf.eval_dir is not None:
             eval_dir = os.path.join(
                 self._exp_conf.eval_dir,
@@ -147,6 +162,8 @@ class Experiment:
         else:
             self._exp_conf.eval_dir = os.devnull
             self._log.info("Evaluation will not be saved.")
+
+        # Create a deque to store auxiliary logging data
         self._aux_data_history = deque(maxlen=100)
 
         # DEBUG Variables
@@ -190,7 +207,6 @@ class Experiment:
         ckpt_path = os.path.join(full_ckpt_dir, ckpt_name)
         self._log.info(f"Loading checkpoint from {ckpt_path}")
         ckpt_pkl = du.read_pkl(ckpt_path, use_torch=True)
-        ckpt_model = ckpt_pkl["model"]
 
         if conf.experiment.use_warm_start_conf:
             OmegaConf.set_struct(conf, False)
@@ -205,7 +221,7 @@ class Experiment:
             self.trained_epochs = ckpt_pkl["epoch"]
         if "step" in ckpt_pkl:
             self.trained_steps = ckpt_pkl["step"]
-        return ckpt_model, ckpt_opt
+        return ckpt_pkl, ckpt_opt
 
     @property
     def flow_matcher(self):
@@ -356,7 +372,7 @@ class Experiment:
             self._log.info(f"Using device: {device}")
             self._model = self.model.to(device)
 
-        self._model.train()
+        self._model.train(True) if self._model.__class__.__name__ == "FF2Model" else self._model.train()
         (
             train_loader,
             valid_loader,
@@ -380,7 +396,7 @@ class Experiment:
             return logs
         return 0
 
-    def update_fn(self, data, debug=True):
+    def update_fn(self, data, debug=False):
         """Updates the state using some data and returns metrics."""
         self._optimizer.zero_grad()
         # torch.autograd.set_detect_anomaly(True, check_nan=True)
@@ -941,7 +957,7 @@ class Experiment:
         return ret
 
 
-@hydra.main(version_base=None, config_path="config/", config_name="base_test")
+@hydra.main(version_base=None, config_path="config/", config_name="ff2_debug")
 def run(conf: DictConfig) -> None:
 
     # Fixes bug in https://github.com/wandb/wandb/issues/1525
