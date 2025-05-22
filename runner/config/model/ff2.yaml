@@ -28,3 +28,13 @@ embed:
   embed_self_conditioning: True
   use_alphafold_position_embedding: False
   relpos_k: null
+
+mace:
+  num_layers: 5
+  emb_dim: 128
+  mlp_dim: 256
+  in_dim: 37 # 37 possible atom types
+  out_dim: 1 # not used, since MACE is used only as encoder
+  aggr: "sum"
+  pool: "sum"
+  batch_norm: False # set to False for small batch size

@@ -15,6 +15,7 @@ from foldflow.models.ff2flow.trunk import (
     FF2TrunkTransformer,
 )
 from foldflow.models.components.sequence.frozen_esm import FrozenEsmModel
+from foldflow.models.components.structure.mace import MACE
 from functools import lru_cache
 from foldflow.models.se3_fm import SE3FlowMatcher
 
