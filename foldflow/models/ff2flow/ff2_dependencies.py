@@ -15,7 +15,7 @@ from foldflow.models.ff2flow.trunk import (
     FF2TrunkTransformer,
 )
 from foldflow.models.components.sequence.frozen_esm import FrozenEsmModel
-from foldflow.models.components.structure.mace import MACE
+from foldflow.models.components.structure.mace import MACEConfig, MACEModel
 from functools import lru_cache
 from foldflow.models.se3_fm import SE3FlowMatcher
 
@@ -82,6 +82,24 @@ class FF2Dependencies:
         esm_wrapper.esm.half()
 
         return esm_wrapper
+
+    @dependency
+    def bb_mace_encoder(self):
+        mace_conf = MACEConfig(
+            num_layers=self.config.model.mace.num_layers,
+            emb_dim=self.config.model.mace.emb_dim,
+            mlp_dim=self.config.model.mace.mlp_dim,
+            in_dim=self.config.model.mace.in_dim,
+            out_dim=self.config.model.mace.out_dim,
+            aggr=self.config.model.mace.aggr,
+            pool=self.config.model.mace.pool,
+            batch_norm=self.config.model.mace.batch_norm,
+        )
+        # Init and setup MACE model
+        mace = MACEModel(
+            conf=mace_conf,
+        )
+        return mace
 
     @dependency
     def sequence_to_trunk_network(self):
