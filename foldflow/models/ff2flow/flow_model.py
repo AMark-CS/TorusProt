@@ -1,6 +1,8 @@
 from typing import Dict, Tuple
 
 import torch
+import logging
+
 from foldflow.data import all_atom
 from foldflow.models.ff2flow.adapters import (
     ProjectConcatRepresentation,
@@ -30,6 +32,7 @@ class FF2Model(nn.Module):
         trunk_network: FF2TrunkTransformer,
         trunk_to_decoder_network: TrunkToDecoderNetwork,
         time_embedder,
+        debug=True,
     ):
         super().__init__()
         self.config = config
@@ -45,6 +48,9 @@ class FF2Model(nn.Module):
 
         self._is_conditional_generation = False
         self._is_scaffolding_generation = False
+        self._debug = debug
+        self._logger = logging.getLogger(__name__)
+        self._logger.setLevel(logging.INFO)
 
     @property
     def is_cond_seq(self):
@@ -164,7 +170,7 @@ class FF2Model(nn.Module):
         # Processing of the sequence emb (trainable). # LN and Lin. layers.
         seq_emb_s, seq_emb_z = self.sequence_to_trunk_network(seq_emb_s, seq_emb_z, batch["seq_idx"], batch["res_mask"])
 
-        # Structure representations.
+        # Structure encoder representations.
         bb_encoder_output = self.bb_encoder(
             res_mask=batch["res_mask"],
             fixed_mask=batch["fixed_mask"],
@@ -186,12 +192,28 @@ class FF2Model(nn.Module):
         pair_representation = {"bb": bb_emb_z, "seq": seq_emb_z}
         single_embed, pair_embed = self.combiner_network(single_representation, pair_representation)
 
-        # Evoformer or linear or identity.
+        # Evoformer or linear or identity. (Identity is used)
+        single_embed_prev = single_embed
+        pair_embed_prev = pair_embed
         single_embed, pair_embed = self.trunk_network(single_embed, pair_embed, mask=batch["res_mask"].float())
 
-        # Update representations dim for decoder.
+        # If debugging, check how trunk network behaves.
+        if self._debug:
+            if torch.all(single_embed == single_embed_prev) and torch.all(pair_embed == pair_embed_prev):
+                msg = f"Trunk network is working as an identity function"
+                self._logger.info(msg)
+            else:
+                msg = f"Trunk network is not working as an identity function"
+                self._logger.info(msg)
+                self._logger.info(f"single_embed_prev: {single_embed_prev}")
+                self._logger.info(f"single_embed: {single_embed}")
+        # Disable logging
+        self._logger.disabled = True
+
+        # Update representations dim for decoder. Uses just one Linear and LN layer.
         single_embed, pair_embed = self.trunk_to_decoder_network(single_embed, pair_embed)
 
+        # Add a skip connection and average the result.
         single_embed = 0.5 * (single_embed + init_single_embed)
         pair_embed = 0.5 * (pair_embed + init_pair_embed)
 

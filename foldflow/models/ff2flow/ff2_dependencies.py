@@ -18,13 +18,14 @@ from foldflow.models.components.sequence.frozen_esm import FrozenEsmModel
 from functools import lru_cache
 from foldflow.models.se3_fm import SE3FlowMatcher
 
-dependency = lambda fn : property(lru_cache()(fn))
+dependency = lambda fn: property(lru_cache()(fn))
+
 
 class FF2Dependencies:
 
     def __init__(self, config):
         self.config = config
-            
+
     @dependency
     def flow_matcher(self):
         return SE3FlowMatcher(self.config.flow_matcher)
@@ -91,9 +92,7 @@ class FF2Dependencies:
             chunk_size=self.config.model.modalities_transformer.chunk_size,
         )
 
-        pair_dim = (
-            self.seq_encoder.num_layers * self.seq_encoder.attn_head
-        )  
+        pair_dim = self.seq_encoder.num_layers * self.seq_encoder.attn_head
         sequence_to_trunk_network = SequenceToTrunkNetwork(
             esm_single_dim=self.seq_encoder.single_dim,
             num_layers=self.seq_encoder.num_layers,
@@ -109,6 +108,7 @@ class FF2Dependencies:
     def combiner_network(self):
         single_dim = self.config.model.representation_combiner.single_dim
         pair_dim = self.config.model.representation_combiner.pair_dim
+        # TODO: add single/pair represenation dimensions for MACE
         single_dims = {
             "bb": self.bb_encoder_conf.ipa.c_s,
             "seq": self.config.model.seq_emb_to_block.single_dim,

@@ -642,7 +642,8 @@ class IpaNetwork(nn.Module):
 
         # Main trunk
         curr_rigids = self.scale_rigids(curr_rigids)
-        node_embed = init_node_embed * node_mask[..., None]  # Removed redundant masking
+        init_node_embed = init_node_embed * node_mask[..., None]
+        node_embed = init_node_embed * node_mask[..., None]
         for b in range(self._ipa_conf.num_blocks):
             ipa_embed = self.trunk[f"ipa_{b}"](s=node_embed, z=edge_embed, r=curr_rigids, mask=node_mask)
             ipa_embed *= node_mask[..., None]
@@ -660,12 +661,14 @@ class IpaNetwork(nn.Module):
             rigid_update = self.trunk[f"bb_update_{b}"](node_embed * flow_mask[..., None])
             curr_rigids = curr_rigids.compose_q_update_vec(rigid_update, flow_mask[..., None])
 
+            # Update the edge embeddings
             if b < self._ipa_conf.num_blocks - 1 or self.update_edge_all:
                 edge_embed = self.trunk[f"edge_transition_{b}"](node_embed, edge_embed)
                 edge_embed *= edge_mask[..., None]
+
         t = input_feats["t"].requires_grad_(True)
 
-        # ipdb.set_trace()
+        # Compute the rotation vector field
         _, rot_vectorfield = self.flow_matcher.calc_rot_vectorfield(
             rot_0=curr_rigids.get_rots().get_rot_mats(),
             rot_t=init_rigids.get_rots().get_rot_mats(),
@@ -673,6 +676,7 @@ class IpaNetwork(nn.Module):
         )
         rot_vectorfield = rot_vectorfield * node_mask[..., None, None]
 
+        # Compute the torsion angles
         curr_rigids = self.unscale_rigids(curr_rigids)
         _, psi_pred = self.torsion_pred(node_embed)
         model_out = {
@@ -683,6 +687,8 @@ class IpaNetwork(nn.Module):
             model_out["node_embed"] = node_embed
             model_out["edge_embed"] = edge_embed
             return model_out
+
+        # Compute the translation vector field
         trans_vectorfield = self.flow_matcher.calc_trans_vectorfield(
             curr_rigids.get_trans(),
             init_rigids.get_trans(),
@@ -690,6 +696,7 @@ class IpaNetwork(nn.Module):
             use_torch=True,
         )
         trans_vectorfield = trans_vectorfield * node_mask[..., None]
+
         model_out["rot_vectorfield"] = rot_vectorfield
         model_out["trans_vectorfield"] = trans_vectorfield
         return model_out

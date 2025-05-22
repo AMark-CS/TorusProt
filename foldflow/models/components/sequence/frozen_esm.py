@@ -40,6 +40,7 @@ class FrozenEsmModel(nn.Module):
         self.esm, self.esm_dict = ESM_REGISTRY[model_key]()
         self.register_buffer("af2_to_esm", FrozenEsmModel._af2_to_esm(self.esm_dict))
         self.use_esm_attn_map = use_esm_attn_map
+        # num transformer layers + 1 for the last projection layer = num representation layers
         self._repr_layers = tuple(range(self.esm.num_layers + 1))
         self._previous_call = None
 
@@ -69,9 +70,6 @@ class FrozenEsmModel(nn.Module):
         convert_to_esm: bool = True,
         cache_last_call: bool = True,
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
-        # Get seq_len before the sequence is augmented
-        seq_len = aa_sequence.shape[1]
-
         # preprocesss
         if convert_to_esm:
             # TODO: need to mask sequence after adding linkers ?
@@ -94,36 +92,31 @@ class FrozenEsmModel(nn.Module):
         )
 
         # postprocess
-        single_repns = torch.stack(
-            [v for _, v in sorted(res["representations"].items())], dim=2
-        )
-        single_repns = single_repns[:, 1:-1]  # B, L, nLayers, C
+        single_repns = torch.stack([v for _, v in sorted(res["representations"].items())], dim=2)
+        # Get rid of the first and last tokens, which are the special tokens.
+        # B, residues, nLayers, C
+        single_repns = single_repns[:, 1:-1]
         pair_repns = (
-            res["attentions"].permute(0, 4, 3, 1, 2).flatten(3, 4)[:, 1:-1, 1:-1, :]
-            if self.use_esm_attn_map
-            else None
+            res["attentions"].permute(0, 4, 3, 1, 2).flatten(3, 4)[:, 1:-1, 1:-1, :] if self.use_esm_attn_map else None
         )
 
         if cache_last_call:
             self._previous_call = {
                 "inputs": sequence_data.aa_sequence.clone().detach(),
-                "outputs": tree.map_structure(
-                    lambda x: x.clone().detach(), (single_repns, pair_repns)
-                ),
+                "outputs": tree.map_structure(lambda x: x.clone().detach(), (single_repns, pair_repns)),
             }
 
+        # By default we return attn weights as pair representations.
         return single_repns, pair_repns
 
     @staticmethod
     def _af2_to_esm(d: Alphabet):
         # Remember that t is shifted from residue_constants by 1 (0 is padding).
-        esm_reorder = [d.padding_idx] + [
-            d.get_idx(v) for v in residue_constants.restypes_with_x
-        ]
+        esm_reorder = [d.padding_idx] + [d.get_idx(v) for v in residue_constants.restypes_with_x]
         return torch.tensor(esm_reorder)
 
     def _convert_af_to_esm(self, aa_sequence, attn_mask, seq_mask):
-        """attn_mask is passed to the model for masking attention/batchiung
+        """attn_mask is passed to the model for masking attention/batching
         seq_mask is the masking pattern for masking residues, e.g. during LLM training
         """
         aa_sequence = self._af2_idx_to_esm_idx(aa_sequence, attn_mask)
@@ -133,9 +126,7 @@ class FrozenEsmModel(nn.Module):
 
     def _af2_idx_to_esm_idx(self, aa, mask):
         aa = (aa + 1).masked_fill(mask != 1, 0)
-        self.af2_to_esm = self.af2_to_esm.to(
-            aa.device
-        )
+        self.af2_to_esm = self.af2_to_esm.to(aa.device)
         return self.af2_to_esm[aa]
 
     def _mask_inputs_to_esm(self, esmaa, pattern):
@@ -143,24 +134,16 @@ class FrozenEsmModel(nn.Module):
         new_esmaa[pattern == 1] = self.esm_dict.mask_idx
         return new_esmaa
 
-    def _add_special_tokens(
-        self, aa_sequence: torch.Tensor, chain_idx: torch.Tensor
-    ) -> SequenceData:
+    def _add_special_tokens(self, aa_sequence: torch.Tensor, chain_idx: torch.Tensor) -> SequenceData:
         batch_size = aa_sequence.size(0)
         """Adds bos/eos/linker tokens for the language model, since the structure module doesn't use these."""
         sequence_data = SequenceData.from_single_chain(aa_sequence)
 
         bosi, eosi = self.esm_dict.cls_idx, self.esm_dict.eos_idx
         bos = sequence_data.aa_sequence.new_full((batch_size, 1), bosi)
-        eos = sequence_data.aa_sequence.new_full(
-            (batch_size, 1), self.esm_dict.padding_idx
-        )
-        sequence_data.aa_sequence = torch.cat(
-            [bos, sequence_data.aa_sequence, eos], dim=1
-        )
+        eos = sequence_data.aa_sequence.new_full((batch_size, 1), self.esm_dict.padding_idx)
+        sequence_data.aa_sequence = torch.cat([bos, sequence_data.aa_sequence, eos], dim=1)
         # Use the first padding index as eos during inference.
-        sequence_data.aa_sequence[
-            range(batch_size), (sequence_data.aa_sequence != 1).sum(1)
-        ] = eosi
+        sequence_data.aa_sequence[range(batch_size), (sequence_data.aa_sequence != 1).sum(1)] = eosi
         # return aa_sequence
         return sequence_data
