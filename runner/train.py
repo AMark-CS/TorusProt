@@ -102,10 +102,9 @@ class Experiment:
         if self._use_ddp and self.fabric.global_rank != 0:
             self._exp_conf.full_ckpt_dir = None
 
-        # Initialize experiment objects
-        self._flow_matcher = se3_fm.SE3FlowMatcher(self._fm_conf)
         # If model is "ff1", use the default FoldFlow1 model - VectorFieldNetwork (with IPA)
         if self._model_conf.model_name == "ff1":
+            self._flow_matcher = se3_fm.SE3FlowMatcher(self._fm_conf)
             self._model = network.VectorFieldNetwork(self._model_conf, self.flow_matcher)
 
             # Load a checkpoint for the model if available
@@ -119,6 +118,7 @@ class Experiment:
         # transformer multimodal fusion trunk, and IPA decoder.
         elif self._model_conf.model_name == "ff2":
             deps = FF2Dependencies(conf)
+            self._flow_matcher = deps.flow_matcher
             if ckpt_pkl is not None:
                 self._model = FF2Model.from_ckpt(ckpt_pkl, deps)
             else:
