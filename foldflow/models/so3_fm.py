@@ -3,8 +3,6 @@ The structure of this file is greatly influenced by SE3 Diffusion by Yim et. al 
 Link: https://github.com/jasonkyuyim/se3_diffusion
 """
 
-import logging
-import math
 from typing import Union
 
 import numpy as np
@@ -13,7 +11,6 @@ from einops import rearrange
 from torch import vmap
 from geomstats.geometry.special_orthogonal import SpecialOrthogonal
 from scipy.spatial.transform import Rotation
-from torch import Tensor
 
 from foldflow.utils.so3_condflowmatcher import SO3ConditionalFlowMatcher
 from foldflow.utils.so3_helpers import (
@@ -37,7 +34,6 @@ def _flat_vec(vec, return_batch=False):
 
 class SO3FM:
     def __init__(self, so3_conf, stochastic_paths):
-        self._log = logging.getLogger(__name__)
         self.so3_group = SpecialOrthogonal(n=3, point_type="matrix")
         self.so3_cfm = SO3ConditionalFlowMatcher(manifold=self.so3_group)
         self.stochastic_paths = stochastic_paths
