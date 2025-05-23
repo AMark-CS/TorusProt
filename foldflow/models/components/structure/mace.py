@@ -2,20 +2,22 @@ import e3nn
 import torch
 
 from pydantic.dataclasses import dataclass
+from pydantic import ConfigDict
+
 from torch.nn import functional as F
 from torch_geometric.nn import global_add_pool, global_mean_pool
 from torch_geometric.data import Batch
 from typing import Optional
 
-from .modules.irreps_tools import reshape_irreps
-from .modules.blocks import (
+from foldflow.models.components.structure.modules.irreps_tools import reshape_irreps
+from foldflow.models.components.structure.modules.blocks import (
     EquivariantProductBasisBlock,
     RadialEmbeddingBlock,
 )
-from .layers.tfn_layer import TensorProductConvLayer
+from foldflow.models.components.structure.layers.tfn_layer import TensorProductConvLayer
 
 
-@dataclass
+@dataclass(config=ConfigDict(arbitrary_types_allowed=True))
 class MACEConfig:
     """
     Parameters:
@@ -91,7 +93,7 @@ class MACEModel(torch.nn.Module):
         self.emb_in = torch.nn.Embedding(conf.in_dim, conf.emb_dim)
 
         # Set hidden irreps if none are provided
-        if hidden_irreps is None:
+        if conf.hidden_irreps is None:
             hidden_irreps = (sh_irreps * conf.emb_dim).sort()[0].simplify()
             # Note: This defaults to O(3) equivariant layers
             # It is possible to use SO(3) equivariance by passing the appropriate irreps

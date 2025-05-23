@@ -8,7 +8,6 @@
 from typing import Dict, Optional, Union
 
 import torch
-import torch.fx
 from e3nn import o3
 from e3nn.util.codegen import CodeGenMixin
 from e3nn.util.jit import compile_mode

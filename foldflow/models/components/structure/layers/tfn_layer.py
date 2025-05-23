@@ -2,7 +2,7 @@ import torch
 from torch_scatter import scatter
 import e3nn
 
-from models.mace.modules.irreps_tools import irreps2gate
+from foldflow.models.components.structure.modules.irreps_tools import irreps2gate
 
 
 class TensorProductConvLayer(torch.nn.Module):
