@@ -85,21 +85,22 @@ class FF2Dependencies:
 
     @dependency
     def bb_mace_encoder(self):
-        mace_conf = MACEConfig(
-            num_layers=self.config.model.mace.num_layers,
-            emb_dim=self.config.model.mace.emb_dim,
-            mlp_dim=self.config.model.mace.mlp_dim,
-            in_dim=self.config.model.mace.in_dim,
-            out_dim=self.config.model.mace.out_dim,
-            aggr=self.config.model.mace.aggr,
-            pool=self.config.model.mace.pool,
-            batch_norm=self.config.model.mace.batch_norm,
-        )
-        # Init and setup MACE model
-        mace = MACEModel(
-            conf=mace_conf,
-        )
-        return mace
+        if self.config.model.mace_encoder.is_on:
+            # Init and setup MACE encoder if it's used
+            mace_conf = MACEConfig(
+                num_layers=self.config.model.mace_encoder.num_layers,
+                emb_dim=self.config.model.mace_encoder.emb_dim,
+                mlp_dim=self.config.model.mace_encoder.mlp_dim,
+                in_dim=self.config.model.mace_encoder.in_dim,
+                out_dim=self.config.model.mace_encoder.out_dim,
+                aggr=self.config.model.mace_encoder.aggr,
+                pool=self.config.model.mace_encoder.pool,
+                batch_norm=self.config.model.mace_encoder.batch_norm,
+            )
+            mace = MACEModel(
+                conf=mace_conf,
+            )
+            return mace
 
     @dependency
     def sequence_to_trunk_network(self):

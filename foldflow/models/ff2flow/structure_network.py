@@ -155,11 +155,7 @@ class FF2StructureNetwork(IpaNetwork):
         )
         single_emb = model_out["node_embed"]
         pair_emb = model_out["edge_embed"]
-        rigids = (
-            model_out["final_rigids"]
-            if not unscale_rigids
-            else model_out["scaled_rigids"]
-        )
+        rigids = model_out["final_rigids"] if not unscale_rigids else model_out["scaled_rigids"]
         psi = model_out["psi"]
         output_dict = {
             "single_emb": single_emb,

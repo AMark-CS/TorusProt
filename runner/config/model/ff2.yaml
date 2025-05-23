@@ -29,12 +29,13 @@ embed:
   use_alphafold_position_embedding: False
   relpos_k: null
 
-mace:
+mace_encoder:
+  is_on: True
   num_layers: 5
   emb_dim: 128
   mlp_dim: 256
-  in_dim: 37 # 37 possible atom types
-  out_dim: 1 # not used, since MACE is used only as encoder
+  in_dim: 1 # take only 1 type of atoms --> C-alpha backbone
+  out_dim: 1 # dummy var, not used, since MACE is used only as encoder
   aggr: "sum"
   pool: "sum"
   batch_norm: False # set to False for small batch size

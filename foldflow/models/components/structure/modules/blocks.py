@@ -4,13 +4,14 @@
 # This program is distributed under the MIT License (see MIT.md)
 ###########################################################################################
 
+import torch
+
 from typing import Dict, Optional, Union
 
-import torch.nn.functional
 from e3nn import nn, o3
 
-from .radial import BesselBasis, PolynomialCutoff
-from .symmetric_contraction import SymmetricContraction
+from foldflow.models.components.structure.modules.radial import BesselBasis, PolynomialCutoff
+from foldflow.models.components.structure.modules.symmetric_contraction import SymmetricContraction
 
 
 class RadialEmbeddingBlock(torch.nn.Module):

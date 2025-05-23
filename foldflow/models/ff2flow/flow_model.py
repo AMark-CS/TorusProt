@@ -1,4 +1,4 @@
-from typing import Dict, Tuple
+from typing import Dict, Tuple, Optional
 
 import torch
 import logging
@@ -13,6 +13,7 @@ from foldflow.models.ff2flow.ff2_dependencies import FF2Dependencies
 from foldflow.models.ff2flow.structure_network import FF2StructureNetwork
 from foldflow.models.ff2flow.trunk import FF2TrunkTransformer
 from foldflow.models.components.sequence.frozen_esm import FrozenEsmModel
+from foldflow.models.components.structure.mace import MACEModel
 from openfold.utils import rigid_utils as ru
 from torch import nn
 from foldflow.models.components.sequence.frozen_esm import ESM_REGISTRY
@@ -25,6 +26,7 @@ class FF2Model(nn.Module):
         config,
         flow_matcher: SE3FlowMatcher,
         bb_encoder: FF2StructureNetwork,
+        bb_mace_encoder: Optional[MACEModel],
         bb_decoder: FF2StructureNetwork,
         seq_encoder: FrozenEsmModel,
         sequence_to_trunk_network: SequenceToTrunkNetwork,
@@ -38,6 +40,7 @@ class FF2Model(nn.Module):
         self.config = config
         self.flow_matcher = flow_matcher
         self.bb_encoder = bb_encoder
+        self.bb_mace_encoder = bb_mace_encoder
         self.bb_decoder = bb_decoder
         self.seq_encoder = seq_encoder
         self.sequence_to_trunk_network = sequence_to_trunk_network
@@ -62,6 +65,7 @@ class FF2Model(nn.Module):
             dependencies.config,
             dependencies.flow_matcher,
             dependencies.bb_encoder,
+            dependencies.bb_mace_encoder,
             dependencies.bb_decoder,
             dependencies.seq_encoder,
             dependencies.sequence_to_trunk_network,
@@ -186,6 +190,10 @@ class FF2Model(nn.Module):
         rigids_updated = bb_encoder_output["rigids"]
         init_single_embed = bb_encoder_output["init_single_embed"]
         init_pair_embed = bb_encoder_output["init_pair_embed"]
+
+        # If MACE encoder is used, produce MACE representations.
+        if self.bb_mace_encoder is not None:
+            bb_mace_encoder_output = self.bb_mace_encoder(batch=None)
 
         # Representations combiner
         single_representation = {"bb": bb_emb_s, "seq": seq_emb_s}
