@@ -12,9 +12,11 @@ bb_decoder:
 seq_emb_to_block:
   single_dim: 128 
   pair_dim: 128
+bb_mace_encoder_to_block:
+  single_dim: 256
 representation_combiner:
-  single_dim: 128 # NOTE: If proj+concat, the total dim will be 512
-  pair_dim: 64 # NOTE: If proj+concat, the total dim will be 512
+  single_dim: 128 # NOTE: If proj+concat, the total dim will be 256 or 384 (if using MACE)
+  pair_dim: 64 # NOTE: If proj+concat, the total dim will be 128
   layer_norm: True
 modalities_transformer:
   trunk_type: "transformer"
@@ -34,8 +36,19 @@ mace_encoder:
   num_layers: 5
   emb_dim: 128
   mlp_dim: 256
+  encoder_dim: 256
+  encoder_degree_weights: null # e.g {0: 3.0, 1: 1.0, 2: 1.0} - 3x weight for scalars
   in_dim: 1 # take only 1 type of atoms --> C-alpha backbone
   out_dim: 1 # dummy var, not used, since MACE is used only as encoder
   aggr: "sum"
   pool: "sum"
   batch_norm: False # set to False for small batch size
+
+graph:
+  knn_k: 10
+  knn_min_dist: 5
+  knn_max_dist: null
+  radius_r: 10
+  radius_min_dist: 5
+  radius_max_dist: null
+  radius_max_num_neighbors: 32

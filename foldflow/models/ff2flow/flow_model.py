@@ -3,8 +3,11 @@ from typing import Dict, Tuple, Optional
 import torch
 import logging
 
+from torch_geometric.data import Data, Batch
+
 from foldflow.data import all_atom
 from foldflow.models.ff2flow.adapters import (
+    MACEEncoderToTrunkNetwork,
     ProjectConcatRepresentation,
     SequenceToTrunkNetwork,
     TrunkToDecoderNetwork,
@@ -18,6 +21,7 @@ from openfold.utils import rigid_utils as ru
 from torch import nn
 from foldflow.models.components.sequence.frozen_esm import ESM_REGISTRY
 from foldflow.models.se3_fm import SE3FlowMatcher
+from foldflow.utils.graph_helpers import KNNGraph, SpatialGraph, find_isolated_nodes, union
 
 
 class FF2Model(nn.Module):
@@ -30,9 +34,12 @@ class FF2Model(nn.Module):
         bb_decoder: FF2StructureNetwork,
         seq_encoder: FrozenEsmModel,
         sequence_to_trunk_network: SequenceToTrunkNetwork,
+        bb_mace_encoder_to_trunk_network: MACEEncoderToTrunkNetwork,
         combiner_network: ProjectConcatRepresentation,
         trunk_network: FF2TrunkTransformer,
         trunk_to_decoder_network: TrunkToDecoderNetwork,
+        knn_graph: KNNGraph,
+        radius_graph: SpatialGraph,
         time_embedder,
         debug=True,
     ):
@@ -44,13 +51,17 @@ class FF2Model(nn.Module):
         self.bb_decoder = bb_decoder
         self.seq_encoder = seq_encoder
         self.sequence_to_trunk_network = sequence_to_trunk_network
+        self.bb_mace_encoder_to_trunk_network = bb_mace_encoder_to_trunk_network
         self.combiner_network = combiner_network
         self.trunk_network = trunk_network
         self.trunk_to_decoder_network = trunk_to_decoder_network
         self.time_embedder = time_embedder
+        self.knn_graph = knn_graph
+        self.radius_graph = radius_graph
 
         self._is_conditional_generation = False
         self._is_scaffolding_generation = False
+
         self._debug = debug
         self._logger = logging.getLogger(__name__)
         self._logger.setLevel(logging.INFO)
@@ -62,17 +73,20 @@ class FF2Model(nn.Module):
     @classmethod
     def from_dependencies(cls, dependencies: FF2Dependencies):
         return cls(
-            dependencies.config,
-            dependencies.flow_matcher,
-            dependencies.bb_encoder,
-            dependencies.bb_mace_encoder,
-            dependencies.bb_decoder,
-            dependencies.seq_encoder,
-            dependencies.sequence_to_trunk_network,
-            dependencies.combiner_network,
-            dependencies.trunk_network,
-            dependencies.trunk_to_decoder_network,
-            dependencies.time_embedder,
+            config=dependencies.config,
+            flow_matcher=dependencies.flow_matcher,
+            bb_encoder=dependencies.bb_encoder,
+            bb_mace_encoder=dependencies.bb_mace_encoder,
+            bb_decoder=dependencies.bb_decoder,
+            seq_encoder=dependencies.seq_encoder,
+            sequence_to_trunk_network=dependencies.sequence_to_trunk_network,
+            bb_mace_encoder_to_trunk_network=dependencies.bb_mace_encoder_to_trunk_network,
+            combiner_network=dependencies.combiner_network,
+            trunk_network=dependencies.trunk_network,
+            trunk_to_decoder_network=dependencies.trunk_to_decoder_network,
+            knn_graph=dependencies.knn_graph,
+            radius_graph=dependencies.radius_graph,
+            time_embedder=dependencies.time_embedder,
         )
 
     @classmethod
@@ -193,10 +207,36 @@ class FF2Model(nn.Module):
 
         # If MACE encoder is used, produce MACE representations.
         if self.bb_mace_encoder is not None:
-            bb_mace_encoder_output = self.bb_mace_encoder(batch=None)
+            # Create a graph using only CA positions.
+            ca_pos = batch["atom37_pos"][..., 1, :].to(torch.float32)
+            res_idx = batch["residue_index"]
+            atoms = torch.zeros_like(ca_pos[..., 0]).to(torch.long)  # Dummy atomic type, as MACE requires it.
+            data = Batch.from_data_list(
+                [Data(atoms=atoms[i], pos=ca_pos[i], res_idx=res_idx[i]) for i in range(ca_pos.shape[0])]
+            )
+            # Create edges based on the spatial distances and KNN between CA atoms, but not connecting
+            # CA atoms of the neighbouring residues.
+            spatial_edges = self.radius_graph(data).t().contiguous()
+            knn_edges = self.knn_graph(data).t().contiguous()
+            # Combine the edges.
+            data.edge_index = union(spatial_edges, knn_edges)
+
+            # Check for isolated nodes.
+            assert len(find_isolated_nodes(data, data.edge_index)) == 0, "Some nodes are isolated in the graph."
+
+            # Compute MACE representations. The result contains only updated O(3)-equivariant node features,
+            # the pairwise features are encoded in the node features --> we have only single representation here.
+            bb_mace_emb_s = self.bb_mace_encoder(data)
+
+            # Process MACE representations (Here we loose equivariance of the features)
+            bb_mace_emb_s = self.bb_mace_encoder_to_trunk_network(bb_mace_emb_s)
 
         # Representations combiner
-        single_representation = {"bb": bb_emb_s, "seq": seq_emb_s}
+        single_representation = {
+            "bb": bb_emb_s,
+            "seq": seq_emb_s,
+            "bb_mace": bb_mace_emb_s if self.bb_mace_encoder else None,
+        }
         pair_representation = {"bb": bb_emb_z, "seq": seq_emb_z}
         single_embed, pair_embed = self.combiner_network(single_representation, pair_representation)
 

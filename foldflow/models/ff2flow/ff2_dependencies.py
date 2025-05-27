@@ -1,6 +1,9 @@
 # FF modular model for designs with multiple modalities.
+from dataclasses import asdict
+from torch_geometric.nn import pool
 
 from foldflow.models.ff2flow.adapters import (
+    MACEEncoderToTrunkNetwork,
     ProjectConcatRepresentation,
     SequenceToTrunkNetwork,
     TrunkToDecoderNetwork,
@@ -18,6 +21,7 @@ from foldflow.models.components.sequence.frozen_esm import FrozenEsmModel
 from foldflow.models.components.structure.mace import MACEConfig, MACEModel
 from functools import lru_cache
 from foldflow.models.se3_fm import SE3FlowMatcher
+from foldflow.utils.graph_helpers import KNNGraph, SpatialGraph
 
 dependency = lambda fn: property(lru_cache()(fn))
 
@@ -91,6 +95,8 @@ class FF2Dependencies:
                 num_layers=self.config.model.mace_encoder.num_layers,
                 emb_dim=self.config.model.mace_encoder.emb_dim,
                 mlp_dim=self.config.model.mace_encoder.mlp_dim,
+                encoder_dim=self.config.model.mace_encoder.encoder_dim,
+                encoder_degree_weights=self.config.model.mace_encoder.encoder_degree_weights,
                 in_dim=self.config.model.mace_encoder.in_dim,
                 out_dim=self.config.model.mace_encoder.out_dim,
                 aggr=self.config.model.mace_encoder.aggr,
@@ -101,6 +107,36 @@ class FF2Dependencies:
                 conf=mace_conf,
             )
             return mace
+
+    @dependency
+    def bb_mace_encoder_to_trunk_network(self):
+        if self.config.model.mace_encoder.is_on:
+            mace_to_trunk_network = MACEEncoderToTrunkNetwork(
+                encoder_dim=self.config.model.mace_encoder.encoder_dim,
+                d_single=self.config.model.bb_mace_encoder_to_block.single_dim,
+            )
+            return mace_to_trunk_network
+
+    @dependency
+    def knn_graph(self):
+        if self.config.model.mace_encoder.is_on:
+            knn_graph = KNNGraph(
+                k=self.config.model.graph.knn_k,
+                min_distance=self.config.model.graph.knn_min_dist,
+                max_distance=self.config.model.graph.knn_max_dist,
+            )
+            return knn_graph
+
+    @dependency
+    def radius_graph(self):
+        if self.config.model.mace_encoder.is_on:
+            radius_graph = SpatialGraph(
+                r=self.config.model.graph.radius_r,
+                min_distance=self.config.model.graph.radius_min_dist,
+                max_distance=self.config.model.graph.radius_max_dist,
+                max_num_neighbors=self.config.model.graph.radius_max_num_neighbors,
+            )
+            return radius_graph
 
     @dependency
     def sequence_to_trunk_network(self):
@@ -128,14 +164,15 @@ class FF2Dependencies:
     def combiner_network(self):
         single_dim = self.config.model.representation_combiner.single_dim
         pair_dim = self.config.model.representation_combiner.pair_dim
-        # TODO: add single/pair represenation dimensions for MACE
         single_dims = {
             "bb": self.bb_encoder_conf.ipa.c_s,
             "seq": self.config.model.seq_emb_to_block.single_dim,
+            "bb_mace": self.config.model.mace_encoder.encoder_dim if self.config.model.mace_encoder.is_on else None,
         }
         pair_dims = {
             "bb": self.bb_encoder_conf.ipa.c_z,
             "seq": self.config.model.seq_emb_to_block.pair_dim,
+            "bb_mace": None,
         }
         self.rpr_comb_single_dim = single_dim
         self.rpr_comb_pair_dim = pair_dim
