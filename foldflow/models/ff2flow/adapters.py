@@ -4,7 +4,7 @@ import torch
 from esm.esmfold.v1.trunk import RelativePosition
 from torch import nn
 
-IMPLEMENTED_REPRESENTATION = ["bb", "seq"]
+IMPLEMENTED_REPRESENTATION = ["bb", "seq", "bb_mace"]
 
 
 class ProjectConcatRepresentation(nn.Module):
@@ -24,30 +24,25 @@ class ProjectConcatRepresentation(nn.Module):
 
         # Initialize projections
         self.projections_single = nn.ModuleDict(
-            {
-                k: nn.Linear(input_dims_single[k], single_dim)
-                for k in self.modalities_name
-            }
+            {k: nn.Linear(input_dims_single[k], single_dim) for k in self.modalities_name if input_dims_single[k]}
         )
         self.projections_pair = nn.ModuleDict(
-            {k: nn.Linear(input_dims_pair[k], pair_dim) for k in self.modalities_name}
+            {k: nn.Linear(input_dims_pair[k], pair_dim) for k in self.modalities_name if input_dims_pair[k]}
         )
 
         # Layer normalization
         self.layer_norm = layer_norm
         if layer_norm:
-            self.layer_norm_single = nn.LayerNorm(
-                len(self.modalities_name) * single_dim
-            )
-            self.layer_norm_pair = nn.LayerNorm(len(self.modalities_name) * pair_dim)
+            self.layer_norm_single = nn.LayerNorm(len(self.projections_single) * single_dim)
+            self.layer_norm_pair = nn.LayerNorm(len(self.projections_pair) * pair_dim)
 
     @property
     def out_single_dim(self):
-        return self.single_dim * len(self.modalities_name)
+        return self.single_dim * len(self.projections_single)
 
     @property
     def out_pair_dim(self):
-        return self.pair_dim * len(self.modalities_name)
+        return self.pair_dim * len(self.projections_pair)
 
     def forward(
         self, single: Dict[str, torch.Tensor], pair: Dict[str, torch.Tensor]
@@ -55,12 +50,10 @@ class ProjectConcatRepresentation(nn.Module):
 
         # Project and concatenate
         single_repr = torch.cat(
-            [self.projections_single[k](single[k]) for k in self.modalities_name],
+            [self.projections_single[k](single[k]) for k in self.projections_single.keys()],
             dim=-1,
         )
-        pair_repr = torch.cat(
-            [self.projections_pair[k](pair[k]) for k in self.modalities_name], dim=-1
-        )
+        pair_repr = torch.cat([self.projections_pair[k](pair[k]) for k in self.projections_pair.keys()], dim=-1)
 
         # Apply layer normalization if enabled
         if self.layer_norm:
@@ -110,17 +103,13 @@ class SequenceToTrunkNetwork(nn.Module):
         )
         self.esm_single_combine = nn.Parameter(torch.zeros(num_layers + 1))
 
-        self.pairwise_positional_embedding = RelativePosition(
-            position_bins, pairwise_state_dim
-        )
+        self.pairwise_positional_embedding = RelativePosition(position_bins, pairwise_state_dim)
 
     def forward(self, seq_emb_s, seq_emb_z, res_idx, res_mask):
         # single rpr
         seq_emb_s = seq_emb_s.to(self.esm_single_combine.dtype)
         seq_emb_s = seq_emb_s.detach()
-        seq_emb_s = (
-            self.esm_single_combine.softmax(0).unsqueeze(0) @ seq_emb_s
-        ).squeeze(2)
+        seq_emb_s = (self.esm_single_combine.softmax(0).unsqueeze(0) @ seq_emb_s).squeeze(2)
         single = self.single_mlp(seq_emb_s)
 
         # pair rpr
@@ -131,3 +120,21 @@ class SequenceToTrunkNetwork(nn.Module):
         return single, pair
 
 
+class MACEEncoderToTrunkNetwork(nn.Module):
+    def __init__(
+        self,
+        encoder_dim: int,
+        d_single: int,
+    ):
+        super().__init__()
+        self.single_mlp = nn.Sequential(
+            nn.LayerNorm(encoder_dim),
+            nn.Linear(encoder_dim, d_single),
+            nn.ReLU(),
+            nn.Linear(d_single, d_single),
+        )
+
+    def forward(self, mace_emb_s):
+        seq_emb_s = mace_emb_s.to(self.single_mlp[0].weight.dtype)
+        single = self.single_mlp(seq_emb_s)
+        return single

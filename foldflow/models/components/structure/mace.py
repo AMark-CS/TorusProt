@@ -1,13 +1,12 @@
-import e3nn
 import torch
 
+from e3nn import o3, nn
 from pydantic.dataclasses import dataclass
 from pydantic import ConfigDict
 
 from torch.nn import functional as F
 from torch_geometric.nn import global_add_pool, global_mean_pool
-from torch_geometric.data import Batch
-from typing import Optional
+from typing import Optional, Dict
 
 from foldflow.models.components.structure.modules.irreps_tools import reshape_irreps
 from foldflow.models.components.structure.modules.blocks import (
@@ -15,6 +14,7 @@ from foldflow.models.components.structure.modules.blocks import (
     RadialEmbeddingBlock,
 )
 from foldflow.models.components.structure.layers.tfn_layer import TensorProductConvLayer
+from foldflow.utils.irreps_utils import create_reduced_irreps
 
 
 @dataclass(config=ConfigDict(arbitrary_types_allowed=True))
@@ -38,6 +38,9 @@ class MACEConfig:
     - residual (bool): Whether to use residual connections (default: True)
     - equivariant_pred (bool): Whether it is an equivariant prediction task (default: False)
     - as_encoder (bool): Whether to use the model as an encoder (default: True)
+    - encoder_dim (int): Dimension of the encoder output (default: 256)
+    - encoder_degree_weights (Optional[Dict[int, float]]): Degree weights for the encoder (default: None)
+    - encoder_min_multiplicity (int): Minimum multiplicity for the encoder (default: 1)
 
     Note:
     - If `hidden_irreps` is None, the irreps for the intermediate features are computed
@@ -53,7 +56,7 @@ class MACEConfig:
     correlation: int = 3
     num_layers: int = 5
     emb_dim: int = 64
-    hidden_irreps: Optional[e3nn.o3.Irreps] = None
+    hidden_irreps: Optional[o3.Irreps] = None
     mlp_dim: int = 256
     in_dim: int = 1
     out_dim: int = 1
@@ -63,6 +66,9 @@ class MACEConfig:
     residual: bool = True
     equivariant_pred: bool = True
     as_encoder: bool = True
+    encoder_dim: int = 256
+    encoder_degree_weights: Optional[Dict[int, float]] = None
+    encoder_min_multiplicity: int = 1
 
 
 class MACEModel(torch.nn.Module):
@@ -86,8 +92,8 @@ class MACEModel(torch.nn.Module):
             num_bessel=conf.num_bessel,
             num_polynomial_cutoff=conf.num_polynomial_cutoff,
         )
-        sh_irreps = e3nn.o3.Irreps.spherical_harmonics(conf.max_ell)
-        self.spherical_harmonics = e3nn.o3.SphericalHarmonics(sh_irreps, normalize=True, normalization="component")
+        sh_irreps = o3.Irreps.spherical_harmonics(conf.max_ell)
+        self.spherical_harmonics = o3.SphericalHarmonics(sh_irreps, normalize=True, normalization="component")
 
         # Embedding lookup for initial node features
         self.emb_in = torch.nn.Embedding(conf.in_dim, conf.emb_dim)
@@ -105,7 +111,7 @@ class MACEModel(torch.nn.Module):
         # First layer: scalar only -> tensor
         self.convs.append(
             TensorProductConvLayer(
-                in_irreps=e3nn.o3.Irreps(f"{conf.emb_dim}x0e"),
+                in_irreps=o3.Irreps(f"{conf.emb_dim}x0e"),
                 out_irreps=hidden_irreps,
                 sh_irreps=sh_irreps,
                 edge_feats_dim=self.radial_embedding.out_dim,
@@ -153,6 +159,25 @@ class MACEModel(torch.nn.Module):
                 )
             )
 
+        if conf.as_encoder:
+            # If used as an encoder, reduce the output dimension and create a linear encoder layer
+            # Create reduced irreps with controlled degree distribution
+            final_irreps = create_reduced_irreps(
+                input_irreps=hidden_irreps,
+                target_dim=conf.encoder_dim,
+                degree_weights=conf.encoder_degree_weights,
+            )
+
+            self.encoder_head = torch.nn.ModuleList()
+            self.encoder_head.append(
+                o3.Linear(
+                    irreps_in=hidden_irreps,
+                    irreps_out=final_irreps,
+                )
+            )
+            if conf.batch_norm:
+                self.encoder_head.append(nn.BatchNorm(final_irreps))
+
         # Global pooling/readout function
         self.pool = {"mean": global_mean_pool, "sum": global_add_pool}[conf.pool]
 
@@ -180,25 +205,17 @@ class MACEModel(torch.nn.Module):
 
         for conv, reshape, prod in zip(self.convs, self.reshapes, self.prods):
             # Message passing layer
-            h_update = conv(h, batch.edge_index, edge_sh, edge_feats)
+            h_update = conv(node_attr=h, edge_index=batch.edge_index, edge_sh=edge_sh, edge_feat=edge_feats)
 
             # Update node features
-            sc = F.pad(h, (0, h_update.shape[-1] - h.shape[-1]))
-            h = prod(reshape(h_update), sc, None)
+            sc = F.pad(h, (0, h_update.shape[-1] - h.shape[-1]))  # skip connection
+            h = prod(node_feats=reshape(h_update), sc=sc, node_attrs=None)
 
         if self.as_encoder:
-            # Return only the node scalar features for featurization in the invariant prediction task
-            h = h[:, : self.emb_dim]
-            # Create a new attribute for each graph, which is the MACE features
-            data_list = batch.to_data_list()
-            start = 0
-            for data in data_list:
-                h_conformer = h[start : start + data.num_nodes]
-                data.h_mace = h_conformer
-                start += data.num_nodes
-
-            batch = Batch.from_data_list(data_list)  # dim = [NUM_CONFORMERS_SAMPLE * BATCH_SIZE; emb_dim]
-            return batch
+            # If used as an encoder, apply the linear layer and batch normalization (if applicable)
+            for layer in self.encoder_head:
+                h = layer(h)
+            return h.view(batch.num_graphs, -1, h.shape[-1])  # (n, final_irreps.dim)
 
         out = self.pool(h, batch.batch)  # (n, d) -> (batch_size, d)
 

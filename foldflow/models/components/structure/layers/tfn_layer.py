@@ -79,7 +79,7 @@ class TensorProductConvLayer(torch.nn.Module):
     def forward(self, node_attr, edge_index, edge_sh, edge_feat):
         src, dst = edge_index
         # Compute messages
-        tp = self.tp(node_attr[dst], edge_sh, self.fc(edge_feat))
+        tp = self.tp(node_attr[dst], edge_sh, weight=self.fc(edge_feat))
         # Aggregate messages
         out = scatter(tp, src, dim=0, reduce=self.aggr)
         # Optionally apply gated non-linearity and/or batch norm

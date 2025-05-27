@@ -39,7 +39,7 @@ class EquivariantProductBasisBlock(torch.nn.Module):
     - target_irreps (o3.Irreps): Target output irreps
     - correlation (Union[int, Dict[str, int]]): Correlation order or body order - 1
     - element_dependent (bool): Whether the block is element dependent
-    - use_sc (bool): Whether to use scipped connections
+    - use_sc (bool): Whether to use skipped connections
     - batch_norm (bool): Whether to use batch normalization
     - num_elements (Optional[int]): Number of elements for symmetric contraction.
     """
