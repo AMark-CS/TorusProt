@@ -39,8 +39,6 @@ class MACEConfig:
     - equivariant_pred (bool): Whether it is an equivariant prediction task (default: False)
     - as_encoder (bool): Whether to use the model as an encoder (default: True)
     - encoder_dim (int): Dimension of the encoder output (default: 256)
-    - encoder_degree_weights (Optional[Dict[int, float]]): Degree weights for the encoder (default: None)
-    - encoder_min_multiplicity (int): Minimum multiplicity for the encoder (default: 1)
 
     Note:
     - If `hidden_irreps` is None, the irreps for the intermediate features are computed
@@ -67,8 +65,6 @@ class MACEConfig:
     equivariant_pred: bool = True
     as_encoder: bool = True
     encoder_dim: int = 256
-    encoder_degree_weights: Optional[Dict[int, float]] = None
-    encoder_min_multiplicity: int = 1
 
 
 class MACEModel(torch.nn.Module):
@@ -160,13 +156,10 @@ class MACEModel(torch.nn.Module):
             )
 
         if conf.as_encoder:
-            # If used as an encoder, reduce the output dimension and create a linear encoder layer
-            # Create reduced irreps with controlled degree distribution
-            final_irreps = create_reduced_irreps(
-                input_irreps=hidden_irreps,
-                target_dim=conf.encoder_dim,
-                degree_weights=conf.encoder_degree_weights,
-            )
+            # If used as an encoder, reduce the output dimension and create an equivariant linear encoder layer
+            # that would project the hidden irreps to the final scalar irreps.
+            # We use only scalars because further layers are not equivariant.
+            final_irreps = o3.Irreps(f"{conf.encoder_dim}x0e")
 
             self.encoder_head = torch.nn.ModuleList()
             self.encoder_head.append(
