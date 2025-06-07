@@ -1,4 +1,4 @@
-use_wandb: True
+use_wandb: False
 entity: null
 project: foldflow
 dir: ./

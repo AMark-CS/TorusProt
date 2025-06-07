@@ -6,6 +6,7 @@ Sample command:
 
 import logging
 import os
+import sys
 import shutil
 import subprocess
 import time
@@ -86,7 +87,7 @@ class Sampler:
         torch.hub.set_dir(self._infer_conf.pt_hub_dir)
 
         # Set-up accelerator
-        if torch.cuda.is_available():
+        if torch.cuda.is_available() and not self._infer_conf.disable_gpu:
             if self._infer_conf.gpu_id is None:
                 available_gpus = "".join([str(x) for x in GPUtil.getAvailable(order="memory", limit=8)])
                 self.device = f"cuda:{available_gpus[0]}"
@@ -118,10 +119,8 @@ class Sampler:
         if conf.model.model_name == "ff1":
             self._load_ckpt_ff1(weights_pkl, conf_overrides)
         else:
-            deps = FF2Dependencies(conf)
-            # self.model = FF2Model.from_ckpt(weights_pkl, deps)
-            self.flow_matcher = deps.flow_matcher
-            self.exp = train.Experiment(conf=self._conf, model="ff2")
+            self.exp = train.Experiment(conf=self._conf)
+            self.flow_matcher = self.exp.flow_matcher
             self.model = self.exp.model
         self.model = self.model.to(self.device)
         self.model.eval()
@@ -264,7 +263,7 @@ class Sampler:
         output_path = os.path.join(decoy_pdb_dir, "parsed_pdbs.jsonl")
         process = subprocess.Popen(
             [
-                "python",
+                sys.executable,
                 f"{self._pmpnn_dir}/helper_scripts/parse_multiple_chains.py",
                 f"--input_path={decoy_pdb_dir}",
                 f"--output_path={output_path}",
@@ -274,7 +273,7 @@ class Sampler:
         num_tries = 0
         ret = -1
         pmpnn_args = [
-            "python",
+            sys.executable,
             f"{self._pmpnn_dir}/protein_mpnn_run.py",
             "--out_folder",
             decoy_pdb_dir,

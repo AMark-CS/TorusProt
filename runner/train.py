@@ -172,7 +172,6 @@ class Experiment:
 
     def handle_warmstart(self, conf):
         # Warm starting
-        ckpt_model = None
         ckpt_opt = None
         self.trained_epochs = 0
         self.trained_steps = 0
@@ -957,7 +956,7 @@ class Experiment:
         return ret
 
 
-@hydra.main(version_base=None, config_path="config/", config_name="ff2_debug")
+@hydra.main(version_base=None, config_path="config/", config_name="ff2_mace")
 def run(conf: DictConfig) -> None:
 
     # Fixes bug in https://github.com/wandb/wandb/issues/1525

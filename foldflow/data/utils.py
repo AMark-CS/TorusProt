@@ -37,7 +37,7 @@ def read_pkl(read_path: str, verbose=True, use_torch=False, map_location=None):
     """Read data from a pickle file."""
     try:
         if use_torch:
-            return torch.load(read_path, map_location=map_location)
+            return torch.load(read_path, map_location=map_location, weights_only=False)
         else:
             with open(read_path, "rb") as handle:
                 return pickle.load(handle)
