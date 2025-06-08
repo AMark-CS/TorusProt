@@ -4,7 +4,7 @@ scaffold_training: False
 binder_training: False
 binder_percent_fix_structure: 1.0
 bb_encoder:
-  num_blocks: 4 # 2
+  num_blocks: 2
   coordinate_scaling: ${flow_matcher.r3.coordinate_scaling}
 bb_decoder:
   num_blocks: 2
