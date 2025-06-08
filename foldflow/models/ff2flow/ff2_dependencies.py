@@ -168,17 +168,22 @@ class FF2Dependencies:
         return trunk_network
 
     def _get_trunk_transformer(self):
-        block_config = FF2TrunkBlockConfig(
-            sequence_state_dim=self.combiner_network.out_single_dim,
-            pairwise_state_dim=self.combiner_network.out_pair_dim,
-            sequence_head_width=self.config.model.modalities_transformer.sequence_head_width,
-            pairwise_head_width=self.config.model.modalities_transformer.pairwise_head_width,
-            chunk_size=self.config.model.modalities_transformer.chunk_size,
-        )
-        return FF2TrunkTransformer(
-            num_blocks=self.config.model.modalities_transformer.num_blocks,
-            block_config=block_config,
-        )
+        trunk_type = self.config.model.modalities_transformer.trunk_type
+        assert (trunk_type in ["identity", "transformer"], f"Trunk type must be either identity or transformer")
+        if trunk_type == "transformer":
+            block_config = FF2TrunkBlockConfig(
+                sequence_state_dim=self.combiner_network.out_single_dim,
+                pairwise_state_dim=self.combiner_network.out_pair_dim,
+                sequence_head_width=self.config.model.modalities_transformer.sequence_head_width,
+                pairwise_head_width=self.config.model.modalities_transformer.pairwise_head_width,
+                chunk_size=self.config.model.modalities_transformer.chunk_size,
+            )
+            return FF2TrunkTransformer(
+                num_blocks=self.config.model.modalities_transformer.num_blocks,
+                block_config=block_config,
+            )
+        else:
+            return None
 
     @dependency
     def trunk_to_decoder_network(self):

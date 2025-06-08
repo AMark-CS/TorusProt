@@ -36,10 +36,9 @@ class FF2Model(nn.Module):
         sequence_to_trunk_network: SequenceToTrunkNetwork,
         bb_mace_encoder_to_trunk_network: MACEEncoderToTrunkNetwork,
         combiner_network: ProjectConcatRepresentation,
-        trunk_network: FF2TrunkTransformer,
+        trunk_network: Optional[FF2TrunkTransformer],
         trunk_to_decoder_network: TrunkToDecoderNetwork,
         time_embedder,
-        debug=True,
     ):
         super().__init__()
         self.config = config
@@ -58,7 +57,7 @@ class FF2Model(nn.Module):
         self._is_conditional_generation = False
         self._is_scaffolding_generation = False
 
-        self._debug = debug
+        self._debug = config.experiment.debug
         self._logger = logging.getLogger(__name__)
         self._logger.setLevel(logging.INFO)
 
@@ -251,8 +250,9 @@ class FF2Model(nn.Module):
         pair_representation = {"bb": bb_emb_z, "seq": seq_emb_z}
         single_embed, pair_embed = self.combiner_network(single_representation, pair_representation)
 
-        # Evoformer or linear or identity. (Identity is used for the first 2 epochs)
-        single_embed, pair_embed = self.trunk_network(single_embed, pair_embed, mask=batch["res_mask"].float())
+        # Evoformer or identity.
+        if self.trunk_network:
+            single_embed, pair_embed = self.trunk_network(single_embed, pair_embed, mask=batch["res_mask"].float())
 
         # Update representations dim for decoder. Uses just one Linear and LN layer.
         single_embed, pair_embed = self.trunk_to_decoder_network(single_embed, pair_embed)

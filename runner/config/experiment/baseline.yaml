@@ -4,6 +4,7 @@ run_id: null
 
 #training mode
 use_ddp : False
+debug: False
 
 # Training arguments
 log_freq: 100

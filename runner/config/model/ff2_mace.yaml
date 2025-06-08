@@ -19,7 +19,7 @@ representation_combiner:
   pair_dim: 64 # NOTE: If proj+concat, the total dim will be 128
   layer_norm: True
 modalities_transformer:
-  trunk_type: "transformer"
+  trunk_type: "identity" # "transformer" or "identity"
   num_blocks: 2
   sequence_head_width: 32
   pairwise_head_width: 32

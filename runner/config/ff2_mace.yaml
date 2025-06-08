@@ -2,7 +2,7 @@
 defaults:
   - data: default
   - flow_matcher: default
-  - model: ff2
+  - model: ff2_mace
   - experiment: baseline
   - local: ff2_mace
   - wandb: default
