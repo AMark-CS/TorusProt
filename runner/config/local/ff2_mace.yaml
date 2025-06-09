@@ -23,11 +23,11 @@ experiment:
 
   # Training mode
   use_ddp: False
-  debug: False
+  debug: True
 
   # Training arguments
   log_freq: 100
-  batch_size: 1
+  batch_size: 512
   eval_batch_size: ${data.samples_per_eval_length}
   num_loader_workers: 1
   torch_num_threads: 1

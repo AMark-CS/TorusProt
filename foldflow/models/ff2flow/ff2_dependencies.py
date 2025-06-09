@@ -92,6 +92,7 @@ class FF2Dependencies:
             # Init and setup MACE encoder if it's used
             mace_conf = MACEConfig(
                 num_layers=self.config.model.mace_encoder.num_layers,
+                max_ell=self.config.model.mace_encoder.max_ell,
                 emb_dim=self.config.model.mace_encoder.emb_dim,
                 mlp_dim=self.config.model.mace_encoder.mlp_dim,
                 encoder_dim=self.config.model.mace_encoder.encoder_dim,

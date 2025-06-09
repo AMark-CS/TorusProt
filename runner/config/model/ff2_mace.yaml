@@ -13,7 +13,7 @@ seq_emb_to_block:
   single_dim: 128 
   pair_dim: 128
 bb_mace_encoder_to_block:
-  single_dim: 256
+  single_dim: ${..mace_encoder.encoder_dim}
 representation_combiner:
   single_dim: 128 # NOTE: If proj+concat, the total dim will be 256 or 384 (if using MACE)
   pair_dim: 64 # NOTE: If proj+concat, the total dim will be 128
@@ -33,10 +33,11 @@ embed:
 
 mace_encoder:
   is_on: False
-  num_layers: 5
-  emb_dim: 128
-  mlp_dim: 256
-  encoder_dim: 256
+  max_ell: 2
+  num_layers: 2
+  emb_dim: 64
+  mlp_dim: 64
+  encoder_dim: 128
   in_dim: 1 # take only 1 type of atoms --> C-alpha backbone
   out_dim: 1 # dummy var, not used, since MACE is used only as encoder
   aggr: "sum"
@@ -51,4 +52,4 @@ graph:
   radius_min_dist: 5
   radius_max_dist: null
   radius_max_num_neighbors: 10
-  max_squared_res_ratio: 0.3
+  max_squared_res_ratio: 0.15

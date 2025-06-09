@@ -14,7 +14,6 @@ from foldflow.models.components.structure.modules.blocks import (
     RadialEmbeddingBlock,
 )
 from foldflow.models.components.structure.layers.tfn_layer import TensorProductConvLayer
-from foldflow.utils.irreps_utils import create_reduced_irreps
 
 
 @dataclass(config=ConfigDict(arbitrary_types_allowed=True))
