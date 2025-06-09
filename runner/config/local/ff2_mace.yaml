@@ -18,7 +18,7 @@ data:
 
 experiment:
   # Experiment metadata
-  name: ff2_2f60_trunk_identity
+  name: 2f60_test
   run_id: null
 
   # Training mode
@@ -27,7 +27,7 @@ experiment:
 
   # Training arguments
   log_freq: 100
-  batch_size: 512
+  batch_size: 128
   eval_batch_size: ${data.samples_per_eval_length}
   num_loader_workers: 1
   torch_num_threads: 1
