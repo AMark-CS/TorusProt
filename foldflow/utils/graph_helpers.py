@@ -2,135 +2,55 @@
 
 import torch
 
-from torch_cluster import knn_graph, radius_graph
 from torch_geometric.data import Batch
+from torch_cluster import radius_graph, knn_graph
 
 
-def find_isolated_nodes(data: Batch, edge_index):
-    """
-    Find isolated nodes in the graph.
+def find_isolated_nodes(num_nodes, edge_index):
+    deg = torch.bincount(edge_index[1], minlength=num_nodes)
+    return (deg == 0).nonzero(as_tuple=True)[0]
 
-    Parameters:
-        data (Batch): n graph(s) with node positions
-        edge_index (Tensor): edge index of shape :math:`(2, |E|)`
 
-    Returns:
-        Tensor: indices of isolated nodes
-    """
+def build_graph(data: Batch, max_edges: int, min_residue_distance: int, radius: float, k: int):
     num_nodes = data.num_nodes
-    connected_nodes = edge_index.unique().long()
-    return torch.tensor(list(set(range(num_nodes)) - set(connected_nodes.tolist())))
+    device = data.pos.device
 
+    # Create initial graph using radius and kNN with residue distance filtering
+    edge_index_radius = radius_graph(data.pos, r=radius, batch=data.batch)
+    edge_index_knn = knn_graph(data.pos, k=k, batch=data.batch)
 
-def union(edge_index1, edge_index2):
-    """
-    Compute the union of two edge index tensors.
+    edge_index = torch.cat([edge_index_radius, edge_index_knn], dim=1)
+    src, dst = edge_index
+    residue_distances = (data.res_idx[src] - data.res_idx[dst]).abs()
+    mask = residue_distances >= min_residue_distance
+    edge_index = edge_index[:, mask]
 
-    Parameters:
-        edge_index1 (Tensor): edge index of shape (2, |E1|)
-        edge_index2 (Tensor): edge index of shape (2, |E2|)
+    edge_index = torch.unique(edge_index, dim=1)
 
-    Returns:
-        Tensor: union of edges of shape (2, |E_union|)
-    """
-    combined_edges = torch.cat([edge_index1, edge_index2], dim=1)
-    unique_edges = torch.unique(combined_edges, dim=1)
+    # Clip to max_edges
+    if edge_index.size(1) > max_edges:
+        src, dst = edge_index
+        edge_dist = (data.pos[src] - data.pos[dst]).norm(dim=-1)
+        edge_list = list(zip(src.tolist(), dst.tolist(), edge_dist.tolist()))
 
-    return unique_edges
+        # Sort edges by distance
+        edge_list.sort(key=lambda x: x[2])
+        edge_list = edge_list[: int(max_edges)]
 
+        edge_index = torch.tensor(
+            [[s for s, _, _ in edge_list], [d for _, d, _ in edge_list]], dtype=torch.long, device=device
+        )
 
-class KNNGraph(torch.nn.Module):
-    """
-    Construct edges between each node and its nearest neighbors.
+    # If there are isolated nodes, connect them to their nearest neighbor (ignoring residue constraint)
+    isolated_nodes = find_isolated_nodes(num_nodes=num_nodes, edge_index=edge_index)
+    if len(isolated_nodes) > 0:
+        extra_edges = knn_graph(data.pos, k=1, batch=data.batch)
 
-    Parameters:
-        k (int, optional): number of neighbors
-        min_distance (int, optional): minimum distance between the residues of two nodes
-        max_distance (int, optional): maximum distance between the residues of two nodes
-    """
+        for node in isolated_nodes:
+            candidates = extra_edges[:, extra_edges[1] == node]
+            for i in range(candidates.size(1)):
+                edge = candidates[:, i : i + 1]
+                edge_index = torch.cat([edge_index, edge], dim=1)
+                break
 
-    eps = 1e-10
-
-    def __init__(self, k=10, min_distance=5, max_distance=None):
-        super().__init__()
-        self.k = k
-        self.min_distance = min_distance
-        self.max_distance = max_distance
-
-    def forward(self, data: Batch):
-        """
-        Return KNN edges constructed from the input graph.
-
-        Parameters:
-            data (Batch): n graph(s) with node positions
-
-        Returns:
-            (Tensor, int): edge list of shape :math:`(|E|, 3)`
-        """
-        edge_list = knn_graph(data.pos, k=self.k, batch=data.batch).t()
-
-        if self.min_distance > 0:
-            dest_idx, src_idx = edge_list.t()
-            mask = (data.res_idx[dest_idx] - data.res_idx[src_idx]).abs() < self.min_distance
-            edge_list = edge_list[~mask]
-
-        if self.max_distance:
-            dest_idx, src_idx = edge_list.t()
-            mask = (data.res_idx[dest_idx] - data.res_idx[src_idx]).abs() > self.max_distance
-            edge_list = edge_list[~mask]
-
-        dest_idx, src_idx = edge_list.t()
-        mask = (data.pos[dest_idx] - data.pos[src_idx]).norm(dim=-1) < self.eps
-        edge_list = edge_list[~mask]
-
-        return edge_list
-
-
-class SpatialGraph(torch.nn.Module):
-    """
-    Construct edges between nodes within a specified radius.
-
-    Parameters:
-        r (float, optional): spatial radius
-        min_distance (int, optional): minimum distance between the residues of two nodes
-        max_distance (int, optional): maximum distance between the residues of two nodes
-        max_num_neighbors (int, optional): maximum number of neighbors to connect
-    """
-
-    eps = 1e-10
-
-    def __init__(self, r=5, min_distance=5, max_distance=None, max_num_neighbors=32):
-        super().__init__()
-        self.r = r
-        self.min_distance = min_distance
-        self.max_distance = max_distance
-        self.max_num_neighbors = max_num_neighbors
-
-    def forward(self, data: Batch):
-        """
-        Return spatial radius edges constructed based on the input graph.
-
-        Parameters:
-            data (Batch): n graph(s) with node positions
-
-        Returns:
-            (Tensor, int): edge list of shape :math:`(|E|, 3)`
-        """
-
-        edge_list = radius_graph(data.pos, r=self.r, batch=data.batch, max_num_neighbors=self.max_num_neighbors).t()
-
-        if self.min_distance > 0:
-            dest_idx, src_idx = edge_list.t()
-            mask = (data.res_idx[dest_idx] - data.res_idx[src_idx]).abs() < self.min_distance
-            edge_list = edge_list[~mask]
-
-        if self.max_distance:
-            dest_idx, src_idx = edge_list.t()
-            mask = (data.res_idx[dest_idx] - data.res_idx[src_idx]).abs() > self.max_distance
-            edge_list = edge_list[~mask]
-
-        dest_idx, src_idx = edge_list.t()
-        mask = (data.pos[dest_idx] - data.pos[src_idx]).norm(dim=-1) < self.eps
-        edge_list = edge_list[~mask]
-
-        return edge_list
+    return edge_index

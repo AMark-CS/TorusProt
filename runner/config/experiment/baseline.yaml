@@ -4,6 +4,7 @@ run_id: null
 
 #training mode
 use_ddp : False
+debug: False
 
 # Training arguments
 log_freq: 100
@@ -30,7 +31,7 @@ early_ckpt: True
 # if warm_start is "auto" then checks the dir for any checkpoints
 warm_start: null
 use_warm_start_conf: False
-ckpt_dir: ./ckpt/
+ckpt_dir: ./ckpt
 full_ckpt_dir: ${experiment.ckpt_dir}/${experiment.name}/
 
 # Loss weights.

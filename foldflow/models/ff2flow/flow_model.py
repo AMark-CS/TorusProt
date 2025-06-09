@@ -21,7 +21,7 @@ from openfold.utils import rigid_utils as ru
 from torch import nn
 from foldflow.models.components.sequence.frozen_esm import ESM_REGISTRY
 from foldflow.models.se3_fm import SE3FlowMatcher
-from foldflow.utils.graph_helpers import KNNGraph, SpatialGraph, find_isolated_nodes, union
+from foldflow.utils.graph_helpers import find_isolated_nodes, build_graph
 
 
 class FF2Model(nn.Module):
@@ -36,12 +36,9 @@ class FF2Model(nn.Module):
         sequence_to_trunk_network: SequenceToTrunkNetwork,
         bb_mace_encoder_to_trunk_network: MACEEncoderToTrunkNetwork,
         combiner_network: ProjectConcatRepresentation,
-        trunk_network: FF2TrunkTransformer,
+        trunk_network: Optional[FF2TrunkTransformer],
         trunk_to_decoder_network: TrunkToDecoderNetwork,
-        knn_graph: KNNGraph,
-        radius_graph: SpatialGraph,
         time_embedder,
-        debug=True,
     ):
         super().__init__()
         self.config = config
@@ -56,13 +53,11 @@ class FF2Model(nn.Module):
         self.trunk_network = trunk_network
         self.trunk_to_decoder_network = trunk_to_decoder_network
         self.time_embedder = time_embedder
-        self.knn_graph = knn_graph
-        self.radius_graph = radius_graph
 
         self._is_conditional_generation = False
         self._is_scaffolding_generation = False
 
-        self._debug = debug
+        self._debug = config.experiment.debug
         self._logger = logging.getLogger(__name__)
         self._logger.setLevel(logging.INFO)
 
@@ -84,8 +79,6 @@ class FF2Model(nn.Module):
             combiner_network=dependencies.combiner_network,
             trunk_network=dependencies.trunk_network,
             trunk_to_decoder_network=dependencies.trunk_to_decoder_network,
-            knn_graph=dependencies.knn_graph,
-            radius_graph=dependencies.radius_graph,
             time_embedder=dependencies.time_embedder,
         )
 
@@ -206,57 +199,60 @@ class FF2Model(nn.Module):
         init_pair_embed = bb_encoder_output["init_pair_embed"]
 
         # If MACE encoder is used, produce MACE representations.
-        if self.bb_mace_encoder is not None:
+        has_self_conditioning_output = not torch.all(batch["sc_ca_t"] == 0.0)
+
+        if self.bb_mace_encoder is not None and has_self_conditioning_output:
             # Create a graph using only CA positions.
-            ca_pos = batch["atom37_pos"][..., 1, :].to(torch.float32)
-            res_idx = batch["residue_index"]
+            ca_pos = batch["sc_ca_t"].to(torch.float32)
+            res_idx = batch["residue_index"] if "residue_index" in batch else batch["seq_idx"]
             atoms = torch.zeros_like(ca_pos[..., 0]).to(torch.long)  # Dummy atomic type, as MACE requires it.
             data = Batch.from_data_list(
                 [Data(atoms=atoms[i], pos=ca_pos[i], res_idx=res_idx[i]) for i in range(ca_pos.shape[0])]
             )
             # Create edges based on the spatial distances and KNN between CA atoms, but not connecting
             # CA atoms of the neighbouring residues.
-            spatial_edges = self.radius_graph(data).t().contiguous()
-            knn_edges = self.knn_graph(data).t().contiguous()
-            # Combine the edges.
-            data.edge_index = union(spatial_edges, knn_edges)
+            max_num_edges = self.config.model.graph.max_squared_res_ratio * (data.num_nodes**2)
+            data.edge_index = build_graph(data, max_edges=max_num_edges, min_residue_distance=5, radius=5, k=10)
 
             # Check for isolated nodes.
-            assert len(find_isolated_nodes(data, data.edge_index)) == 0, "Some nodes are isolated in the graph."
+            assert (
+                len(find_isolated_nodes(data.num_nodes, data.edge_index)) == 0
+            ), "Some nodes are isolated in the graph."
 
             # Compute MACE representations. The result contains only updated O(3)-equivariant node features,
             # the pairwise features are encoded in the node features --> we have only single representation here.
             bb_mace_emb_s = self.bb_mace_encoder(data)
+            if self._debug:
+                self._logger.info(f"The number of edges in the graph: {data.edge_index.shape[1]}")
 
             # Process MACE representations (Here we loose equivariance of the features)
             bb_mace_emb_s = self.bb_mace_encoder_to_trunk_network(bb_mace_emb_s)
 
+        # Log norms for debugging.
+        if self._debug:
+            self._logger.info(f"Norm of seq_emb_s: {seq_emb_s.norm()}")
+            self._logger.info(f"Norm of seq_emb_z: {seq_emb_z.norm()}")
+            self._logger.info(f"Norm of bb_emb_s: {bb_emb_s.norm()}")
+            self._logger.info(f"Norm of bb_emb_z: {bb_emb_z.norm()}")
+            if has_self_conditioning_output and self.bb_mace_encoder:
+                self._logger.info(f"Norm of bb_mace_emb_s: {bb_mace_emb_s.norm()}")
+
         # Representations combiner
-        single_representation = {
-            "bb": bb_emb_s,
-            "seq": seq_emb_s,
-            "bb_mace": bb_mace_emb_s if self.bb_mace_encoder else None,
-        }
+        if not (self.bb_mace_encoder and has_self_conditioning_output):
+            bb_mace_emb_s_dim = self.config.model.bb_mace_encoder_to_block.single_dim
+            bb_mace_emb_s = torch.zeros(
+                batch["sc_ca_t"].shape[:-1] + torch.Size([bb_mace_emb_s_dim]),
+                device=bb_emb_s.device,
+                dtype=bb_emb_s.dtype,
+            )
+
+        single_representation = {"bb": bb_emb_s, "seq": seq_emb_s, "bb_mace": bb_mace_emb_s}
         pair_representation = {"bb": bb_emb_z, "seq": seq_emb_z}
         single_embed, pair_embed = self.combiner_network(single_representation, pair_representation)
 
-        # Evoformer or linear or identity. (Identity is used)
-        single_embed_prev = single_embed
-        pair_embed_prev = pair_embed
-        single_embed, pair_embed = self.trunk_network(single_embed, pair_embed, mask=batch["res_mask"].float())
-
-        # If debugging, check how trunk network behaves.
-        if self._debug:
-            if torch.all(single_embed == single_embed_prev) and torch.all(pair_embed == pair_embed_prev):
-                msg = f"Trunk network is working as an identity function"
-                self._logger.info(msg)
-            else:
-                msg = f"Trunk network is not working as an identity function"
-                self._logger.info(msg)
-                self._logger.info(f"single_embed_prev: {single_embed_prev}")
-                self._logger.info(f"single_embed: {single_embed}")
-        # Disable logging
-        self._logger.disabled = True
+        # Evoformer or identity.
+        if self.trunk_network:
+            single_embed, pair_embed = self.trunk_network(single_embed, pair_embed, mask=batch["res_mask"].float())
 
         # Update representations dim for decoder. Uses just one Linear and LN layer.
         single_embed, pair_embed = self.trunk_to_decoder_network(single_embed, pair_embed)

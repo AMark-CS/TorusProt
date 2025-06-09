@@ -1,0 +1,54 @@
+# @package _global_
+
+# Add your local paths here.
+# for the paths for the datasets, the ckpt, wandb, etc.
+
+data:
+  csv_path: ./data/metadata_one.csv
+  cluster_path: ./data/clusters-by-entity-30.txt # or any cluster file
+  filtering:
+    max_len: 384
+    min_len: 60
+  min_t: 0.01
+  cache_full_dataset: False  # Cache both to disk (LMDB) and in memory.
+  cache_dataset_in_memory: False # If True load from mem. If False, load from disk (LMDB).
+  cache_path: ./cache/  # Where to save the LMDB cache.
+  samples_per_eval_length: 1
+  num_eval_lengths: 5
+
+experiment:
+  # Experiment metadata
+  name: ff2_2f60_trunk_identity
+  run_id: null
+
+  # Training mode
+  use_ddp: False
+  debug: True
+
+  # Training arguments
+  log_freq: 100
+  batch_size: 512
+  eval_batch_size: ${data.samples_per_eval_length}
+  num_loader_workers: 1
+  torch_num_threads: 1
+  num_epoch: 500
+  learning_rate: 0.0001
+  max_squared_res: 500000
+  prefetch_factor: 100
+  use_gpu: True
+  num_gpus: 1
+  sample_mode: cluster_time_batch
+
+  # How many steps to checkpoint between.
+  ckpt_freq: 250
+  eval_freq: 250
+  # Take early checkpoint at step 100. Helpful for catching eval bugs early.
+  early_ckpt: True
+  ckpt_dir: ./ckpt_dir
+
+  # Weights and Biases log dir
+  wandb_dir: ./wandb/
+
+flow_matcher:
+  stochastic_paths: False
+

@@ -21,7 +21,6 @@ from foldflow.models.components.sequence.frozen_esm import FrozenEsmModel
 from foldflow.models.components.structure.mace import MACEConfig, MACEModel
 from functools import lru_cache
 from foldflow.models.se3_fm import SE3FlowMatcher
-from foldflow.utils.graph_helpers import KNNGraph, SpatialGraph
 
 dependency = lambda fn: property(lru_cache()(fn))
 
@@ -93,10 +92,10 @@ class FF2Dependencies:
             # Init and setup MACE encoder if it's used
             mace_conf = MACEConfig(
                 num_layers=self.config.model.mace_encoder.num_layers,
+                max_ell=self.config.model.mace_encoder.max_ell,
                 emb_dim=self.config.model.mace_encoder.emb_dim,
                 mlp_dim=self.config.model.mace_encoder.mlp_dim,
                 encoder_dim=self.config.model.mace_encoder.encoder_dim,
-                encoder_degree_weights=self.config.model.mace_encoder.encoder_degree_weights,
                 in_dim=self.config.model.mace_encoder.in_dim,
                 out_dim=self.config.model.mace_encoder.out_dim,
                 aggr=self.config.model.mace_encoder.aggr,
@@ -116,27 +115,6 @@ class FF2Dependencies:
                 d_single=self.config.model.bb_mace_encoder_to_block.single_dim,
             )
             return mace_to_trunk_network
-
-    @dependency
-    def knn_graph(self):
-        if self.config.model.mace_encoder.is_on:
-            knn_graph = KNNGraph(
-                k=self.config.model.graph.knn_k,
-                min_distance=self.config.model.graph.knn_min_dist,
-                max_distance=self.config.model.graph.knn_max_dist,
-            )
-            return knn_graph
-
-    @dependency
-    def radius_graph(self):
-        if self.config.model.mace_encoder.is_on:
-            radius_graph = SpatialGraph(
-                r=self.config.model.graph.radius_r,
-                min_distance=self.config.model.graph.radius_min_dist,
-                max_distance=self.config.model.graph.radius_max_dist,
-                max_num_neighbors=self.config.model.graph.radius_max_num_neighbors,
-            )
-            return radius_graph
 
     @dependency
     def sequence_to_trunk_network(self):
@@ -191,17 +169,22 @@ class FF2Dependencies:
         return trunk_network
 
     def _get_trunk_transformer(self):
-        block_config = FF2TrunkBlockConfig(
-            sequence_state_dim=self.combiner_network.out_single_dim,
-            pairwise_state_dim=self.combiner_network.out_pair_dim,
-            sequence_head_width=self.config.model.modalities_transformer.sequence_head_width,
-            pairwise_head_width=self.config.model.modalities_transformer.pairwise_head_width,
-            chunk_size=self.config.model.modalities_transformer.chunk_size,
-        )
-        return FF2TrunkTransformer(
-            num_blocks=self.config.model.modalities_transformer.num_blocks,
-            block_config=block_config,
-        )
+        trunk_type = self.config.model.modalities_transformer.trunk_type
+        assert (trunk_type in ["identity", "transformer"], f"Trunk type must be either identity or transformer")
+        if trunk_type == "transformer":
+            block_config = FF2TrunkBlockConfig(
+                sequence_state_dim=self.combiner_network.out_single_dim,
+                pairwise_state_dim=self.combiner_network.out_pair_dim,
+                sequence_head_width=self.config.model.modalities_transformer.sequence_head_width,
+                pairwise_head_width=self.config.model.modalities_transformer.pairwise_head_width,
+                chunk_size=self.config.model.modalities_transformer.chunk_size,
+            )
+            return FF2TrunkTransformer(
+                num_blocks=self.config.model.modalities_transformer.num_blocks,
+                block_config=block_config,
+            )
+        else:
+            return None
 
     @dependency
     def trunk_to_decoder_network(self):
