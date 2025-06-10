@@ -822,6 +822,9 @@ class Experiment:
             "res_length": torch.mean(torch.sum(bb_mask, dim=-1)),
         }
 
+        # Print the number of residues in each protein in the batch.
+        self._log.info(f"Batch size: {batch_size}, Residues per protein: {torch.sum(bb_mask, dim=-1)}")
+
         # Maintain a history of the past N number of steps.
         # Helpful for debugging.
         self._aux_data_history.append({"aux_data": aux_data, "model_out": model_out, "batch": batch})
