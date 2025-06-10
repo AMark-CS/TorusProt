@@ -7,22 +7,27 @@ data:
   csv_path: ./data/metadata_all.csv
   cluster_path: ./data/clusters-by-entity-30.txt # or any cluster file
   filtering:
-    max_len: 384
-    min_len: 60
+    max_len: 300
+    min_len: 200
   min_t: 0.01
-  cache_full_dataset: False  # Cache both to disk (LMDB) and in memory.
-  cache_dataset_in_memory: False # If True load from mem. If False, load from disk (LMDB).
+  cache_full_dataset: True  # Cache both to disk (LMDB) and in memory.
+  cache_dataset_in_memory: True # If True load from mem. If False, load from disk (LMDB).
   cache_path: ./cache/  # Where to save the LMDB cache.
-  samples_per_eval_length: 1
+  samples_per_eval_length: 4
   num_eval_lengths: 10
 
 model:
   mace_encoder:
     is_on: False
+    max_ell: 1
+    num_layers: 5
+    max_squared_res_ratio: 0.2
+    emb_dim: 128
+    mlp_dim: 128
 
 experiment:
   # Experiment metadata
-  name: ff2_full_training_test_bs256
+  name: ff2_debug
   run_id: null
 
   # Training mode
@@ -30,15 +35,15 @@ experiment:
   debug: False
 
   # Training arguments
-  log_freq: 100
-  batch_size: 256
+  log_freq: 10
+  batch_size: 128
   eval_batch_size: ${data.samples_per_eval_length}
-  num_loader_workers: 2
-  torch_num_threads: 2
+  num_loader_workers: 95
+  torch_num_threads: 95
   num_epoch: 1
   learning_rate: 0.0001
   max_squared_res: 500000
-  prefetch_factor: 100
+  prefetch_factor: 500
   use_gpu: True
   num_gpus: 2
   sample_mode: cluster_time_batch
@@ -47,7 +52,7 @@ experiment:
   ckpt_freq: 5000
   eval_freq: 5000
   # Take early checkpoint at step 100. Helpful for catching eval bugs early.
-  early_ckpt: True
+  early_ckpt: False
   ckpt_dir: ./ckpt_dir
 
   # Weights and Biases log dir
