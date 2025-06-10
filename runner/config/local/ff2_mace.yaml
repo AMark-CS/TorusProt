@@ -4,7 +4,7 @@
 # for the paths for the datasets, the ckpt, wandb, etc.
 
 data:
-  csv_path: ./data/metadata_one.csv
+  csv_path: ./data/metadata_all.csv
   cluster_path: ./data/clusters-by-entity-30.txt # or any cluster file
   filtering:
     max_len: 384
@@ -18,11 +18,11 @@ data:
 
 model:
   mace_encoder:
-    is_on: True
+    is_on: False
 
 experiment:
   # Experiment metadata
-  name: 2f60_ff2_mace_bs64
+  name: ff2_full_training_test_bs256
   run_id: null
 
   # Training mode
@@ -31,7 +31,7 @@ experiment:
 
   # Training arguments
   log_freq: 100
-  batch_size: 64
+  batch_size: 256
   eval_batch_size: ${data.samples_per_eval_length}
   num_loader_workers: 2
   torch_num_threads: 2
@@ -44,8 +44,8 @@ experiment:
   sample_mode: cluster_time_batch
 
   # How many steps to checkpoint between.
-  ckpt_freq: 200
-  eval_freq: 200
+  ckpt_freq: 5000
+  eval_freq: 5000
   # Take early checkpoint at step 100. Helpful for catching eval bugs early.
   early_ckpt: True
   ckpt_dir: ./ckpt_dir
