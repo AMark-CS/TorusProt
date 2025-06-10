@@ -175,6 +175,7 @@ outputs/
 
 #PDB processed dataset
 data/processed_pdb/
+data/processed_pdb_384/
 data/processed_pdb_openfold/
 
 #PDBBind dataset
