@@ -823,7 +823,7 @@ class Experiment:
         }
 
         # Print the number of residues in each protein in the batch.
-        self._log.info(f"Batch size: {batch_size}, Residues per protein: {torch.sum(bb_mask, dim=-1)}")
+        # self._log.info(f"Batch size: {batch_size}, Residues per protein: {torch.sum(bb_mask, dim=-1)}")
 
         # Maintain a history of the past N number of steps.
         # Helpful for debugging.
