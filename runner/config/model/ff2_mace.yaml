@@ -32,7 +32,7 @@ embed:
   relpos_k: null
 
 mace_encoder:
-  is_on: False
+  is_on: True
   max_ell: 2
   num_layers: 2
   emb_dim: 64
