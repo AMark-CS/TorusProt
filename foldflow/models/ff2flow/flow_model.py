@@ -99,10 +99,14 @@ class FF2Model(nn.Module):
             assert (
                 deps.config.model.esm2_model_key == ckpt_lm_name
             ), f"Model trained with different ESM2 {ckpt_lm_name}, but got {deps.config.model.esm2_model_key=}"
+
         # Fix multi-GPU ckpt loading.
-        if ckpt["conf"].experiment.num_gpus > 1:
-            if not list(ckpt["state_dict"].keys())[0].startswith("module."):
-                ckpt["state_dict"] = {f"module.{k}": v for k, v in ckpt["state_dict"].items()}
+        is_parallel_ckpt = list(ckpt["state_dict"].keys())[0].startswith("module.")
+        is_parallel_model = isinstance(model, torch.nn.DataParallel)
+
+        if is_parallel_ckpt and not is_parallel_model:
+            ckpt["state_dict"] = {k.replace("module.", "", 1): v for k, v in ckpt["state_dict"].items()}
+
         cls._add_esm_to_ckpt(model, ckpt)
         model.load_state_dict(ckpt["state_dict"])
         return model
