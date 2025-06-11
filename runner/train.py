@@ -182,7 +182,7 @@ class Experiment:
 
         # check path exists
         full_ckpt_dir = conf.experiment.full_ckpt_dir
-        print(f"THIS IS TH FULL CONF!\n {conf.experiment}")
+        print(f"THIS IS THE FULL CONF!\n {conf.experiment}")
         if full_ckpt_dir is not None and not os.path.exists(full_ckpt_dir):
             if conf.experiment.warm_start == "auto":
                 return None, None

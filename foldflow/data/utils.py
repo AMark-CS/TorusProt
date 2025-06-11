@@ -324,11 +324,7 @@ def write_checkpoint(
         epoch: Training epoch at time of checkpoint.
         step: Training steps at time of checkpoint.
         exp_state: Experiment state to be written to pickle.
-        preds: Model predictions to be written as part of checkpoint.
     """
-    # for fname in os.listdir(ckpt_dir):
-    # if '.pkl' in fname or '.pth' in fname:
-    #    os.remove(os.path.join(ckpt_dir, fname))
     if logger is not None:
         logger.info(f"Serializing experiment state to {ckpt_path}")
     else:
