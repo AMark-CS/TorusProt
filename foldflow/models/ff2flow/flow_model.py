@@ -101,18 +101,20 @@ class FF2Model(nn.Module):
             ), f"Model trained with different ESM2 {ckpt_lm_name}, but got {deps.config.model.esm2_model_key=}"
         # Fix multi-GPU ckpt loading.
         if ckpt["conf"].experiment.num_gpus > 1:
-            if not list(model.state_dict().keys())[0].startswith("module."):
-                new_state_dict = {f"module.{k}": v for k, v in model.state_dict().items()}
-            model.load_state_dict(new_state_dict)
+            if not list(ckpt["state_dict"].keys())[0].startswith("module."):
+                ckpt["state_dict"] = {f"module.{k}": v for k, v in ckpt["state_dict"].items()}
         cls._add_esm_to_ckpt(model, ckpt)
         model.load_state_dict(ckpt["state_dict"])
         return model
 
     @staticmethod
     def _add_esm_to_ckpt(model, ckpt: Dict[str, torch.Tensor]) -> None:
+        # Determine if we are in a multi-GPU checkpoint
+        prefix = "module." if list(ckpt["state_dict"].keys())[0].startswith("module.") else ""
+
         for k, v in model.seq_encoder.state_dict().items():
             if k.startswith("esm."):
-                ckpt["state_dict"][f"seq_encoder.{k}"] = v
+                ckpt["state_dict"][f"{prefix}seq_encoder.{k}"] = v
 
     def _get_vectorfields(
         self,
