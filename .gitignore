@@ -1,6 +1,6 @@
 # Other
 mmCIF/
-cache/
+ds_cache/
 .vscode/
 ckpt/
 multirun/
