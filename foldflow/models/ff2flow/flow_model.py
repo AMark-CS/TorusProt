@@ -99,6 +99,12 @@ class FF2Model(nn.Module):
             assert (
                 deps.config.model.esm2_model_key == ckpt_lm_name
             ), f"Model trained with different ESM2 {ckpt_lm_name}, but got {deps.config.model.esm2_model_key=}"
+        # Fix multi-GPU ckpt loading.
+        if ckpt["conf"].experiment.num_gpus > 1:
+            if not list(model.state_dict().keys())[0].startswith("module."):
+                model.state_dict() = {
+                    f"module.{k}": v for k, v in model.state_dict().items()
+                }
         cls._add_esm_to_ckpt(model, ckpt)
         model.load_state_dict(ckpt["state_dict"])
         return model
