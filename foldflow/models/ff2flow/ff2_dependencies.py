@@ -170,7 +170,7 @@ class FF2Dependencies:
 
     def _get_trunk_transformer(self):
         trunk_type = self.config.model.modalities_transformer.trunk_type
-        assert (trunk_type in ["identity", "transformer"], f"Trunk type must be either identity or transformer")
+        assert trunk_type in ["identity", "transformer"], f"Trunk type must be either identity or transformer"
         if trunk_type == "transformer":
             block_config = FF2TrunkBlockConfig(
                 sequence_state_dim=self.combiner_network.out_single_dim,

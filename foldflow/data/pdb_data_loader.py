@@ -29,6 +29,9 @@ from foldflow.utils.so3_helpers import so3_relative_angle
 from openfold.data import data_transforms
 from openfold.np import residue_constants
 from openfold.utils import rigid_utils
+import warnings
+
+warnings.simplefilter(action="ignore", category=FutureWarning)
 
 _BYTES_PER_MEGABYTE = int(1e6)
 

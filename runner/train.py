@@ -182,7 +182,7 @@ class Experiment:
 
         # check path exists
         full_ckpt_dir = conf.experiment.full_ckpt_dir
-        print(f"THIS IS TH FULL CONF!\n {conf.experiment}")
+        print(f"THIS IS THE FULL CONF!\n {conf.experiment}")
         if full_ckpt_dir is not None and not os.path.exists(full_ckpt_dir):
             if conf.experiment.warm_start == "auto":
                 return None, None
@@ -821,6 +821,9 @@ class Experiment:
             "examples_per_step": torch.tensor(batch_size),
             "res_length": torch.mean(torch.sum(bb_mask, dim=-1)),
         }
+
+        # Print the number of residues in each protein in the batch.
+        # self._log.info(f"Batch size: {batch_size}, Residues per protein: {torch.sum(bb_mask, dim=-1)}")
 
         # Maintain a history of the past N number of steps.
         # Helpful for debugging.

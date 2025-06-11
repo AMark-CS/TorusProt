@@ -4,5 +4,5 @@ project: foldflow
 dir: ./
 tags: null
 group: null
-offline: True
+offline: False
 job_type: null

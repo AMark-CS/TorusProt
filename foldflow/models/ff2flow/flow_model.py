@@ -85,12 +85,20 @@ class FF2Model(nn.Module):
     @classmethod
     def from_ckpt(cls, ckpt: Dict[str, torch.Tensor], deps: FF2Dependencies):
         _prefix_to_remove = "vectorfield_network."
+        ckpt["state_dict"] = ckpt["model"]
         ckpt["state_dict"] = {k.replace(_prefix_to_remove, ""): v for k, v in ckpt["state_dict"].items()}
         model = cls.from_dependencies(deps)
-        ckpt_lm_name = ckpt["esm_model"]
-        assert (
-            deps.config.model.esm2_model_key == ckpt_lm_name
-        ), f"Model trained with different ESM2 {ckpt_lm_name}, but got {deps.config.model.esm2_model_key=}"
+        # TODO: fix the improper saving of the ESM model to make the assertion work.
+        if "esm_model" not in ckpt:
+            model._logger.warning(
+                "The checkpoint does not contain 'esm_model' key. "
+                "There's no way to verify the exact ESM model version used for training. Use with caution."
+            )
+        else:
+            ckpt_lm_name = ckpt["esm_model"]
+            assert (
+                deps.config.model.esm2_model_key == ckpt_lm_name
+            ), f"Model trained with different ESM2 {ckpt_lm_name}, but got {deps.config.model.esm2_model_key=}"
         cls._add_esm_to_ckpt(model, ckpt)
         model.load_state_dict(ckpt["state_dict"])
         return model
