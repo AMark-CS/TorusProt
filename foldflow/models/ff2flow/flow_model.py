@@ -102,9 +102,8 @@ class FF2Model(nn.Module):
         # Fix multi-GPU ckpt loading.
         if ckpt["conf"].experiment.num_gpus > 1:
             if not list(model.state_dict().keys())[0].startswith("module."):
-                model.state_dict() = {
-                    f"module.{k}": v for k, v in model.state_dict().items()
-                }
+                new_state_dict = {f"module.{k}": v for k, v in model.state_dict().items()}
+            model.load_state_dict(new_state_dict)
         cls._add_esm_to_ckpt(model, ckpt)
         model.load_state_dict(ckpt["state_dict"])
         return model
