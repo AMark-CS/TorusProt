@@ -1,6 +1,6 @@
 # Configuration for inference on SE(3) diffusion experiments.
 defaults:
-  - base
+  - ff2_mace
   - override model: ff2_mace
   - _self_
 

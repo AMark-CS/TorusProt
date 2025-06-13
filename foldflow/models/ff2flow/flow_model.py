@@ -244,8 +244,16 @@ class FF2Model(nn.Module):
             if self._debug:
                 self._logger.info(f"The number of edges in the graph: {data.edge_index.shape[1]}")
 
-            # Process MACE representations (Here we loose equivariance of the features)
+            # Process MACE representations (Here we lose equivariance of the features)
             bb_mace_emb_s = self.bb_mace_encoder_to_trunk_network(bb_mace_emb_s)
+
+        else:
+            bb_mace_emb_s_dim = self.config.model.bb_mace_encoder_to_block.single_dim
+            bb_mace_emb_s = torch.zeros(
+                batch["sc_ca_t"].shape[:-1] + torch.Size([bb_mace_emb_s_dim]),
+                device=bb_emb_s.device,
+                dtype=bb_emb_s.dtype,
+            )
 
         # Log norms for debugging.
         if self._debug:
@@ -257,14 +265,6 @@ class FF2Model(nn.Module):
                 self._logger.info(f"Norm of bb_mace_emb_s: {bb_mace_emb_s.norm()}")
 
         # Representations combiner
-        if not (self.bb_mace_encoder and has_self_conditioning_output):
-            bb_mace_emb_s_dim = self.config.model.bb_mace_encoder_to_block.single_dim
-            bb_mace_emb_s = torch.zeros(
-                batch["sc_ca_t"].shape[:-1] + torch.Size([bb_mace_emb_s_dim]),
-                device=bb_emb_s.device,
-                dtype=bb_emb_s.dtype,
-            )
-
         single_representation = {"bb": bb_emb_s, "seq": seq_emb_s, "bb_mace": bb_mace_emb_s}
         pair_representation = {"bb": bb_emb_z, "seq": seq_emb_z}
         single_embed, pair_embed = self.combiner_network(single_representation, pair_representation)
