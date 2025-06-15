@@ -1,6 +1,6 @@
 # Configuration for inference on SE(3) diffusion experiments.
 defaults:
-  - base
+  - ff2_mace
   - override model: ff2_mace
   - _self_
 
@@ -16,8 +16,8 @@ inference:
   gpu_id: 0  # CUDA GPU to use
   disable_gpu: true  # Disable GPU usage
   seed: 123
-  full_ckpt_dir: ./ckpt/baseline/
-
+  full_ckpt_dir: None
+  
   # Directory of software, weights, and outputs.
   pt_hub_dir: ~/.cache/torch/hub
   pmpnn_dir: ./ProteinMPNN/
@@ -25,7 +25,7 @@ inference:
 
   # Path to model weights.
   # weights_path: ./ckpt/foldflow-sfm.pth # For FoldFlow-1 with stochastic flow matcher.
-  weights_path: ./ckpt/ff2_base.pth
+  weights_path: ./ckpt_dir/ff2_final/step_175000.pth
 
   flow:
     # Number of steps.
