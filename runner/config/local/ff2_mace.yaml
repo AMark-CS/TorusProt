@@ -35,8 +35,8 @@ experiment:
   debug: False
 
   # Warmstart
-  warm_start: auto
-  use_warm_start_conf: True
+  warm_start: null
+  use_warm_start_conf: False
 
   # Training arguments
   log_freq: 50

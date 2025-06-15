@@ -6,6 +6,8 @@ defaults:
 
 experiment:
   eval_dir: ./ # if None the evaluation won't be saved.
+  warm_start: null  # Path to warm start checkpoint.
+  use_warm_start_conf: False  # Use warm start config.
 
 flow_matcher:
   so3:
