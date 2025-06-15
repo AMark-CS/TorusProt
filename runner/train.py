@@ -39,7 +39,7 @@ from tools.analysis import utils as au
 
 
 class Experiment:
-    def __init__(self, *, conf: DictConfig):
+    def __init__(self, *, conf: DictConfig, weights_pkl=None):
         """Initialize experiment.
 
         Args:
@@ -121,6 +121,8 @@ class Experiment:
             self._flow_matcher = deps.flow_matcher
             if ckpt_pkl is not None:
                 self._model = FF2Model.from_ckpt(ckpt_pkl, deps)
+            elif weights_pkl is not None:
+                self._model = FF2Model.from_ckpt(weights_pkl, deps)
             else:
                 self._model = FF2Model.from_dependencies(deps)
         else:
@@ -170,7 +172,10 @@ class Experiment:
         self._first_train_feats = None
         self._global_rank = 0
 
-    def handle_warmstart(self, conf):
+    def handle_warmstart(
+        self,
+        conf,
+    ):
         # Warm starting
         ckpt_opt = None
         self.trained_epochs = 0

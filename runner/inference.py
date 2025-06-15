@@ -27,8 +27,6 @@ from omegaconf import DictConfig, OmegaConf
 from openfold.data import data_transforms
 from tools.analysis import metrics
 from tools.analysis import utils as au
-from foldflow.models.ff2flow.flow_model import FF2Model
-from foldflow.models.ff2flow.ff2_dependencies import FF2Dependencies
 
 from runner import train
 
@@ -119,10 +117,9 @@ class Sampler:
         if conf.model.model_name == "ff1":
             self._load_ckpt_ff1(weights_pkl, conf_overrides)
         else:
-            deps = FF2Dependencies(conf)
-            self.model = FF2Model.from_ckpt(weights_pkl, deps)
-            self.exp = train.Experiment(conf=self._conf)
+            self.exp = train.Experiment(conf=self._conf, weights_pkl=weights_pkl)
             self.flow_matcher = self.exp.flow_matcher
+            self.model = self.exp.model
         self.model = self.model.to(self.device)
         self.model.eval()
         self._folding_model = esm.pretrained.esmfold_v1().eval()

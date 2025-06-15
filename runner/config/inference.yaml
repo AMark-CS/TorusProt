@@ -9,6 +9,10 @@ experiment:
   warm_start: null  # Path to warm start checkpoint.
   use_warm_start_conf: False  # Use warm start config.
 
+model:
+  mace_encoder:
+    is_on: False
+    
 flow_matcher:
   so3:
     inference_scaling: 10.0

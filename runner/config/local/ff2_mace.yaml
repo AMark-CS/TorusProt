@@ -18,7 +18,7 @@ data:
 
 model:
   mace_encoder:
-    is_on: False
+    is_on: True
     max_ell: 1
     num_layers: 5
     max_squared_res_ratio: 0.2
