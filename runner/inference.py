@@ -119,9 +119,10 @@ class Sampler:
         if conf.model.model_name == "ff1":
             self._load_ckpt_ff1(weights_pkl, conf_overrides)
         else:
+            deps = FF2Dependencies(conf)
+            self.model = FF2Model.from_ckpt(weights_pkl, deps)
             self.exp = train.Experiment(conf=self._conf)
             self.flow_matcher = self.exp.flow_matcher
-            self.model = self.exp.model
         self.model = self.model.to(self.device)
         self.model.eval()
         self._folding_model = esm.pretrained.esmfold_v1().eval()
