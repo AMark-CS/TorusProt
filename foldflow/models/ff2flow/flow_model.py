@@ -88,6 +88,10 @@ class FF2Model(nn.Module):
         ckpt["state_dict"] = ckpt["model"]
         ckpt["state_dict"] = {k.replace(_prefix_to_remove, ""): v for k, v in ckpt["state_dict"].items()}
         model = cls.from_dependencies(deps)
+        if model.bb_mace_encoder is not None:
+            model._logger.info("MACE encoder is ON in the model.")
+        else:
+            model._logger.info("MACE encoder is OFF in the model.")
         # TODO: fix the improper saving of the ESM model to make the assertion work.
         if "esm_model" not in ckpt:
             model._logger.warning(

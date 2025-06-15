@@ -16,8 +16,8 @@ inference:
   gpu_id: 0  # CUDA GPU to use
   disable_gpu: False  # Disable GPU usage
   seed: 123
-  full_ckpt_dir: ./ckpt_dir/ff2_final/
-
+  full_ckpt_dir: None
+  
   # Directory of software, weights, and outputs.
   pt_hub_dir: ~/.cache/torch/hub
   pmpnn_dir: ./ProteinMPNN/
