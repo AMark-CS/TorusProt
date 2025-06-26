@@ -8,6 +8,8 @@ experiment:
   eval_dir: ./ # if None the evaluation won't be saved.
   warm_start: null  # Path to warm start checkpoint.
   use_warm_start_conf: False  # Use warm start config.
+  full_ckpt_dir: None
+
 
 model:
   mace_encoder:
@@ -22,7 +24,6 @@ inference:
   gpu_id: 0  # CUDA GPU to use
   disable_gpu: False  # Disable GPU usage
   seed: 123
-  full_ckpt_dir: None
   
   # Directory of software, weights, and outputs.
   pt_hub_dir: ~/.cache/torch/hub

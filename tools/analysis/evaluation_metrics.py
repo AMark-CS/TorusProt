@@ -26,56 +26,6 @@ def collect_sample_results(results_dir):
     return sample_results
 
 
-def compute_designability_per_length(sample_results, rmsd_threshold=2.0):
-    """
-    Computes designability statistics per protein length.
-
-    Args:
-        sample_results: dict of {(length_dir, sample_dir): DataFrame}
-        rmsd_threshold: threshold for designability (default 2.0 Å)
-        "rmsd": column name for RMSD in each CSV
-
-    Returns:
-        designability_fraction: dict {length_dir: fraction_designable}
-        mean_scrmsd: dict {length_dir: mean_best_rmsd}
-        std_scrmsd: dict {length_dir: std_best_rmsd}
-    """
-    designability_fraction = {}
-    mean_scrmsd = {}
-    std_scrmsd = {}
-
-    # Group by length_dir
-    length_groups = {}
-    for (length_dir, _), df in sample_results.items():
-        if length_dir not in length_groups:
-            length_groups[length_dir] = []
-        length_groups[length_dir].append(df)
-
-    # Compute metrics per length
-    for length_dir, dfs in length_groups.items():
-        designable_count = 0
-        total_count = 0
-        best_rmsds = []
-
-        for df in dfs:
-            total_count += 1
-            min_rmsd = df["rmsd"].min()
-            best_rmsds.append(min_rmsd)
-            if (df["rmsd"] < rmsd_threshold).any():
-                designable_count += 1
-
-        if total_count > 0:
-            designability_fraction[length_dir] = designable_count / total_count
-            mean_scrmsd[length_dir] = np.mean(best_rmsds)
-            std_scrmsd[length_dir] = np.std(best_rmsds)
-        else:
-            designability_fraction[length_dir] = 0.0
-            mean_scrmsd[length_dir] = None
-            std_scrmsd[length_dir] = None
-
-    return designability_fraction, mean_scrmsd, std_scrmsd
-
-
 def compute_novelty(sample_results, rmsd_threshold=2.0, novelty_threshold=0.3):
     """
     Computes novelty statistics per protein length.
@@ -403,7 +353,7 @@ def compute_scrmsd_per_length(sample_results):
 
 
 if __name__ == "__main__":
-    results_dir = "results/ff2_225k"
+    results_dir = "results/ff2_200k"
     sample_results = collect_sample_results(results_dir)
 
     # Overall metrics

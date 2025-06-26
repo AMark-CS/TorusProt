@@ -117,6 +117,9 @@ class Sampler:
         if conf.model.model_name == "ff1":
             self._load_ckpt_ff1(weights_pkl, conf_overrides)
         else:
+            self._log.info(f"Loading weights from {self._weights_path}")
+            self._conf.experiment.ckpt_dir = None
+            self._conf.experiment.warm_start = None
             self.exp = train.Experiment(conf=self._conf, weights_pkl=weights_pkl)
             self.flow_matcher = self.exp.flow_matcher
             self.model = self.exp.model

@@ -1,6 +1,5 @@
 # FF modular model for designs with multiple modalities.
 from dataclasses import asdict
-from torch_geometric.nn import pool
 
 from foldflow.models.ff2flow.adapters import (
     MACEEncoderToTrunkNetwork,
