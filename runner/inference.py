@@ -122,6 +122,7 @@ class Sampler:
             self._conf.experiment.warm_start = None
             self.exp = train.Experiment(conf=self._conf, weights_pkl=weights_pkl)
             self.flow_matcher = self.exp.flow_matcher
+            self.model = self.exp.model
         self.model = self.model.to(self.device)
         self.model.eval()
         self._folding_model = esm.pretrained.esmfold_v1().eval()
