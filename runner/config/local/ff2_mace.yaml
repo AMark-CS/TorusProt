@@ -12,13 +12,13 @@ data:
   min_t: 0.01
   cache_full_dataset: True  # Cache both to disk (LMDB) and in memory.
   cache_dataset_in_memory: True # If True load from mem. If False, load from disk (LMDB).
-  cache_path: ./cache/  # Where to save the LMDB cache.
+  cache_path: ./ds_cache/  # Where to save the LMDB cache.
   samples_per_eval_length: 4
   num_eval_lengths: 10
 
 model:
   mace_encoder:
-    is_on: False
+    is_on: True
     max_ell: 1
     num_layers: 5
     max_squared_res_ratio: 0.2
@@ -27,23 +27,27 @@ model:
 
 experiment:
   # Experiment metadata
-  name: ff2_debug
+  name: ff2_final
   run_id: null
 
   # Training mode
   use_ddp: False
   debug: False
 
+  # Warmstart
+  warm_start: null
+  use_warm_start_conf: False
+
   # Training arguments
-  log_freq: 10
-  batch_size: 128
+  log_freq: 50
+  batch_size: 256
   eval_batch_size: ${data.samples_per_eval_length}
-  num_loader_workers: 95
-  torch_num_threads: 95
-  num_epoch: 1
+  num_loader_workers: 48
+  torch_num_threads: 48
+  num_epoch: 100
   learning_rate: 0.0001
-  max_squared_res: 500000
-  prefetch_factor: 500
+  max_squared_res: 1000000
+  prefetch_factor: 100
   use_gpu: True
   num_gpus: 2
   sample_mode: cluster_time_batch
@@ -52,7 +56,7 @@ experiment:
   ckpt_freq: 5000
   eval_freq: 5000
   # Take early checkpoint at step 100. Helpful for catching eval bugs early.
-  early_ckpt: False
+  early_ckpt: True
   ckpt_dir: ./ckpt_dir
 
   # Weights and Biases log dir

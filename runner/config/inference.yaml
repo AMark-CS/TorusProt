@@ -1,12 +1,20 @@
 # Configuration for inference on SE(3) diffusion experiments.
 defaults:
-  - base
+  - ff2_mace
   - override model: ff2_mace
   - _self_
 
 experiment:
   eval_dir: ./ # if None the evaluation won't be saved.
+  warm_start: null  # Path to warm start checkpoint.
+  use_warm_start_conf: False  # Use warm start config.
+  full_ckpt_dir: None
 
+
+model:
+  mace_encoder:
+    is_on: False
+    
 flow_matcher:
   so3:
     inference_scaling: 10.0
@@ -14,10 +22,9 @@ flow_matcher:
 inference:
   name: null
   gpu_id: 0  # CUDA GPU to use
-  disable_gpu: true  # Disable GPU usage
+  disable_gpu: False  # Disable GPU usage
   seed: 123
-  full_ckpt_dir: ./ckpt/baseline/
-
+  
   # Directory of software, weights, and outputs.
   pt_hub_dir: ~/.cache/torch/hub
   pmpnn_dir: ./ProteinMPNN/
@@ -25,7 +32,7 @@ inference:
 
   # Path to model weights.
   # weights_path: ./ckpt/foldflow-sfm.pth # For FoldFlow-1 with stochastic flow matcher.
-  weights_path: ./ckpt/ff2_base.pth
+  weights_path: ./ckpt_dir/ff2_final/step_175000.pth
 
   flow:
     # Number of steps.
@@ -41,9 +48,9 @@ inference:
     # Number of ESMFdold samples per backbone sample.
     seq_per_sample: 8
     # Minimum sequence length to sample.
-    min_length: 100
+    min_length: 200
     # Maximum sequence length to sample.
     max_length: 300
     # gap between lengths to sample. i.e. this script will sample all lengths
     # in range(min_length, max_length, length_step)
-    length_step: 50
+    length_step: 25

@@ -31,7 +31,7 @@ class SE3FlowMatcher:
             self._log.info("Using stochastic paths.")
 
         if se3_conf.ot_plan:
-            self._log.info(f"Using OT plan with {self._se3_conf.ot_fn} computation.")
+            self._log.info(f"Using OT plan sample_ref {self._se3_conf.ot_fn} computation.")
 
     def forward_marginal(
         self,

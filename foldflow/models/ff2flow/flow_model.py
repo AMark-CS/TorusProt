@@ -88,6 +88,10 @@ class FF2Model(nn.Module):
         ckpt["state_dict"] = ckpt["model"]
         ckpt["state_dict"] = {k.replace(_prefix_to_remove, ""): v for k, v in ckpt["state_dict"].items()}
         model = cls.from_dependencies(deps)
+        if model.bb_mace_encoder is not None:
+            model._logger.info("MACE encoder is ON in the model.")
+        else:
+            model._logger.info("MACE encoder is OFF in the model.")
         # TODO: fix the improper saving of the ESM model to make the assertion work.
         if "esm_model" not in ckpt:
             model._logger.warning(
@@ -99,20 +103,26 @@ class FF2Model(nn.Module):
             assert (
                 deps.config.model.esm2_model_key == ckpt_lm_name
             ), f"Model trained with different ESM2 {ckpt_lm_name}, but got {deps.config.model.esm2_model_key=}"
+
         # Fix multi-GPU ckpt loading.
-        if ckpt["conf"].experiment.num_gpus > 1:
-            if not list(model.state_dict().keys())[0].startswith("module."):
-                new_state_dict = {f"module.{k}": v for k, v in model.state_dict().items()}
-            model.load_state_dict(new_state_dict)
+        is_parallel_ckpt = list(ckpt["state_dict"].keys())[0].startswith("module.")
+        is_parallel_model = isinstance(model, torch.nn.DataParallel)
+
+        if is_parallel_ckpt and not is_parallel_model:
+            ckpt["state_dict"] = {k.replace("module.", "", 1): v for k, v in ckpt["state_dict"].items()}
+
         cls._add_esm_to_ckpt(model, ckpt)
         model.load_state_dict(ckpt["state_dict"])
         return model
 
     @staticmethod
     def _add_esm_to_ckpt(model, ckpt: Dict[str, torch.Tensor]) -> None:
+        # Determine if we are in a multi-GPU checkpoint
+        prefix = "module." if list(ckpt["state_dict"].keys())[0].startswith("module.") else ""
+
         for k, v in model.seq_encoder.state_dict().items():
             if k.startswith("esm."):
-                ckpt["state_dict"][f"seq_encoder.{k}"] = v
+                ckpt["state_dict"][f"{prefix}seq_encoder.{k}"] = v
 
     def _get_vectorfields(
         self,
@@ -238,8 +248,16 @@ class FF2Model(nn.Module):
             if self._debug:
                 self._logger.info(f"The number of edges in the graph: {data.edge_index.shape[1]}")
 
-            # Process MACE representations (Here we loose equivariance of the features)
+            # Process MACE representations (Here we lose equivariance of the features)
             bb_mace_emb_s = self.bb_mace_encoder_to_trunk_network(bb_mace_emb_s)
+
+        else:
+            bb_mace_emb_s_dim = self.config.model.bb_mace_encoder_to_block.single_dim
+            bb_mace_emb_s = torch.zeros(
+                batch["sc_ca_t"].shape[:-1] + torch.Size([bb_mace_emb_s_dim]),
+                device=bb_emb_s.device,
+                dtype=bb_emb_s.dtype,
+            )
 
         # Log norms for debugging.
         if self._debug:
@@ -251,14 +269,6 @@ class FF2Model(nn.Module):
                 self._logger.info(f"Norm of bb_mace_emb_s: {bb_mace_emb_s.norm()}")
 
         # Representations combiner
-        if not (self.bb_mace_encoder and has_self_conditioning_output):
-            bb_mace_emb_s_dim = self.config.model.bb_mace_encoder_to_block.single_dim
-            bb_mace_emb_s = torch.zeros(
-                batch["sc_ca_t"].shape[:-1] + torch.Size([bb_mace_emb_s_dim]),
-                device=bb_emb_s.device,
-                dtype=bb_emb_s.dtype,
-            )
-
         single_representation = {"bb": bb_emb_s, "seq": seq_emb_s, "bb_mace": bb_mace_emb_s}
         pair_representation = {"bb": bb_emb_z, "seq": seq_emb_z}
         single_embed, pair_embed = self.combiner_network(single_representation, pair_representation)
