@@ -26,33 +26,41 @@ def collect_sample_results(results_dir):
     return sample_results
 
 
-def compute_novelty(sample_results, rmsd_threshold=2.0, novelty_threshold=0.3):
+def compute_designability_per_length(sample_results, rmsd_threshold=2.0):
     """
-    Computes novelty statistics per protein length.
+    Computes designability fraction statistics per protein length.
 
     Args:
         sample_results: dict of {(length_dir, sample_dir): DataFrame}
-        rmsd_threshold: threshold for novelty (default 2.0 Å)
-        novelty_threshold: threshold for novelty TM-score (default 0.3)
+        rmsd_threshold: threshold for designability (default 2.0 Å)
 
     Returns:
-        novelty_fraction: float, fraction_novel
-        novelty_std: float, std of novelty per sample
+        designability_fraction: dict {length_dir: fraction_designable}
+        designability_stds: dict {length_dir: std_designable}
     """
-    novelty_values = []
+    designability_fraction = {}
 
-    for _, df in sample_results.items():
-        sample_is_novel = ((df["rmsd"] < rmsd_threshold) & (df["tm_score"] < novelty_threshold)).any()
-        novelty_values.append(1.0 if sample_is_novel else 0.0)
+    # Group by length_dir
+    length_groups = {}
+    for (length_dir, _), df in sample_results.items():
+        if length_dir not in length_groups:
+            length_groups[length_dir] = []
+        length_groups[length_dir].append(df)
 
-    if len(novelty_values) > 0:
-        novelty_fraction = np.mean(novelty_values)
-        novelty_std = np.std(novelty_values)
-    else:
-        novelty_fraction = 0.0
-        novelty_std = None
+    # Compute metrics per length
+    for length_dir, dfs in length_groups.items():
+        designability_values = []
 
-    return novelty_fraction, novelty_std
+        for df in dfs:
+            sample_is_designable = (df["rmsd"] < rmsd_threshold).any()
+            designability_values.append(1.0 if sample_is_designable else 0.0)
+
+        if len(designability_values) > 0:
+            designability_fraction[length_dir] = np.mean(designability_values)
+        else:
+            designability_fraction[length_dir] = 0.0
+
+    return designability_fraction
 
 
 def compute_novelty_per_length(sample_results, rmsd_threshold=2.0, novelty_threshold=0.3):
@@ -66,10 +74,8 @@ def compute_novelty_per_length(sample_results, rmsd_threshold=2.0, novelty_thres
 
     Returns:
         novelty_fraction: dict {length_dir: fraction_novel}
-        novelty_stds: dict {length_dir: std_novel}
     """
     novelty_fraction = {}
-    novelty_stds = {}
 
     # Group by length_dir
     length_groups = {}
@@ -88,62 +94,10 @@ def compute_novelty_per_length(sample_results, rmsd_threshold=2.0, novelty_thres
 
         if len(novelty_values) > 0:
             novelty_fraction[length_dir] = np.mean(novelty_values)
-            novelty_stds[length_dir] = np.std(novelty_values)
         else:
             novelty_fraction[length_dir] = 0.0
-            novelty_stds[length_dir] = None
 
-    return novelty_fraction, novelty_stds
-
-
-def compute_diversity(sample_results, rmsd_threshold=2.0):
-    """
-    Computes diversity as average pairwise TM-score of designable generated samples.
-
-    Args:
-        sample_results: dict of {(length_dir, sample_dir): DataFrame}
-        rmsd_threshold: threshold for designability (default 2.0 Å)
-        "rmsd": column name for RMSD in each CSV
-
-    Returns:
-        diversity_score: float, average pairwise TM-score of designable samples
-    """
-    # Collect all designable sample structures
-    designable_structures = []
-
-    for (_, sample_path), df in sample_results.items():
-        # Check if this sample is designable (has at least one structure with RMSD < threshold)
-        if (df["rmsd"] < rmsd_threshold).any():
-            # Get all designable structures from this sample
-            designable_rows = df[df["rmsd"] < rmsd_threshold]
-
-            for _, row in designable_rows.iterrows():
-                esmf_sample_path = sample_path
-                esmf_sample_path += f"/esmf/sample_{row.iloc[0]}.pdb"
-                # Load PDB and extract coordinates and sequence
-                esmf_feats = du.parse_pdb_feats("folded_sample", esmf_sample_path)
-                designable_structures.append((esmf_feats["bb_positions"], row["sequence"]))
-
-    if len(designable_structures) < 2:
-        # Need at least 2 structures to compute pairwise diversity
-        print("Not enough designable structures to compute diversity. Need at least 2.")
-        return None, None
-
-    # Compute pairwise TM-scores
-    tm_scores = []
-
-    for i in range(len(designable_structures)):
-        for j in range(i + 1, len(designable_structures)):
-            pos_1, seq_1 = designable_structures[i]
-            pos_2, seq_2 = designable_structures[j]
-
-            # Calculate TM-score between structures i and j
-            _, tm_score = calc_tm_score(pos_1, pos_2, seq_1, seq_2)
-            # Use the normalized TM-score (typically tm_score_1 is normalized by chain 1 length)
-            tm_scores.append(tm_score)
-
-    # Return average pairwise TM-score
-    return np.mean(tm_scores)
+    return novelty_fraction
 
 
 def compute_diversity_per_length(sample_results, rmsd_threshold=2.0, rmsd_col="rmsd"):
@@ -218,101 +172,6 @@ def compute_diversity_per_length(sample_results, rmsd_threshold=2.0, rmsd_col="r
     return diversity_scores
 
 
-def compute_designability(sample_results, rmsd_threshold=2.0):
-    """
-    Computes designability statistics.
-
-    Args:
-        sample_results: dict of {(length_dir, sample_dir): DataFrame}
-        rmsd_threshold: threshold for designability (default 2.0 Å)
-
-    Returns:
-        designability_fraction: float, fraction_designable
-        designability_std: float, std of designability per sample
-    """
-    designability_values = []
-
-    for _, df in sample_results.items():
-        sample_is_designable = (df["rmsd"] < rmsd_threshold).any()
-        designability_values.append(1.0 if sample_is_designable else 0.0)
-
-    if len(designability_values) > 0:
-        designability = np.mean(designability_values)
-        designability_std = np.std(designability_values)
-    else:
-        designability = 0.0
-        designability_std = None
-
-    return designability, designability_std
-
-
-def compute_scrmsd(sample_results):
-    """
-    Computes scRMSD statistics.
-
-    Args:
-        sample_results: dict of {(length_dir, sample_dir): DataFrame}
-
-    Returns:
-        mean_scrmsd: float, mean_best_rmsd
-        std_scrmsd: float, std_best_rmsd
-    """
-    best_rmsds = []
-
-    for _, df in sample_results.items():
-        min_rmsd = df["rmsd"].min()
-        best_rmsds.append(min_rmsd)
-
-    if len(best_rmsds) > 0:
-        mean_scrmsd = np.mean(best_rmsds)
-        std_scrmsd = np.std(best_rmsds)
-    else:
-        mean_scrmsd = None
-        std_scrmsd = None
-
-    return mean_scrmsd, std_scrmsd
-
-
-def compute_designability_per_length(sample_results, rmsd_threshold=2.0):
-    """
-    Computes designability fraction statistics per protein length.
-
-    Args:
-        sample_results: dict of {(length_dir, sample_dir): DataFrame}
-        rmsd_threshold: threshold for designability (default 2.0 Å)
-
-    Returns:
-        designability_fraction: dict {length_dir: fraction_designable}
-        designability_stds: dict {length_dir: std_designable}
-    """
-    designability_fraction = {}
-    designability_stds = {}
-
-    # Group by length_dir
-    length_groups = {}
-    for (length_dir, _), df in sample_results.items():
-        if length_dir not in length_groups:
-            length_groups[length_dir] = []
-        length_groups[length_dir].append(df)
-
-    # Compute metrics per length
-    for length_dir, dfs in length_groups.items():
-        designability_values = []
-
-        for df in dfs:
-            sample_is_designable = (df["rmsd"] < rmsd_threshold).any()
-            designability_values.append(1.0 if sample_is_designable else 0.0)
-
-        if len(designability_values) > 0:
-            designability_fraction[length_dir] = np.mean(designability_values)
-            designability_stds[length_dir] = np.std(designability_values)
-        else:
-            designability_fraction[length_dir] = 0.0
-            designability_stds[length_dir] = None
-
-    return designability_fraction, designability_stds
-
-
 def compute_scrmsd_per_length(sample_results):
     """
     Computes scRMSD statistics per protein length.
@@ -322,10 +181,8 @@ def compute_scrmsd_per_length(sample_results):
 
     Returns:
         mean_scrmsd: dict {length_dir: mean_best_rmsd}
-        std_scrmsd: dict {length_dir: std_best_rmsd}
     """
     mean_scrmsd = {}
-    std_scrmsd = {}
 
     # Group by length_dir
     length_groups = {}
@@ -339,87 +196,53 @@ def compute_scrmsd_per_length(sample_results):
         best_rmsds = []
 
         for df in dfs:
+            df = df.drop(0)
             min_rmsd = df["rmsd"].min()
             best_rmsds.append(min_rmsd)
 
         if len(best_rmsds) > 0:
             mean_scrmsd[length_dir] = np.mean(best_rmsds)
-            std_scrmsd[length_dir] = np.std(best_rmsds)
         else:
             mean_scrmsd[length_dir] = None
-            std_scrmsd[length_dir] = None
 
-    return mean_scrmsd, std_scrmsd
+    return mean_scrmsd
+
+
+def compute_mean_std(metric: dict):
+    means = list(metric.values())
+    means = [m for m in means if m is not None]  # Filter out None values
+    mean_metric = np.mean(means)
+    stderr_metric = np.std(means, ddof=1) / np.sqrt(len(means))
+    return mean_metric, stderr_metric
 
 
 if __name__ == "__main__":
-    results_dir = "results/ff2_200k"
+    results_dir = "results/ff2_mace_200k"
     sample_results = collect_sample_results(results_dir)
 
-    # Overall metrics
-    designability_frac = compute_designability(sample_results)
-    scrmsd = compute_scrmsd(sample_results)
-    novelty = compute_novelty(sample_results)
-    diversity = compute_diversity(sample_results)
-
-    # Handle None values in overall metrics
-    if designability_frac[0] is not None and designability_frac[1] is not None:
-        print(f"Designability: {designability_frac[0]:.3f} ± {designability_frac[1]:.3f}")
-    else:
-        print("Designability: None")
-
-    if scrmsd[0] is not None and scrmsd[1] is not None:
-        print(f"scRMSD: {scrmsd[0]:.3f} ± {scrmsd[1]:.3f}")
-    else:
-        print("scRMSD: None")
-
-    if novelty[0] is not None and novelty[1] is not None:
-        print(f"Novelty (designable frac < 0.3): {novelty[0]:.3f} ± {novelty[1]:.3f}")
-    else:
-        print("Novelty (designable frac < 0.3): None")
-
-    if diversity is not None:
-        print(f"Diversity (avg pairwise TM-score): {diversity:.3f}")
-    else:
-        print("Diversity (avg pairwise TM-score): None")
+    metrics = {}
+    results = {}
 
     # Per-length metrics
-    designability_frac_per_length = compute_designability_per_length(sample_results)
-    scrmsd_per_length = compute_scrmsd_per_length(sample_results)
-    novelty_per_length = compute_novelty_per_length(sample_results)
-    diversity_per_length = compute_diversity_per_length(sample_results)
+    metrics["scRMSD"] = compute_scrmsd_per_length(sample_results)
+    metrics["Designablity"] = compute_designability_per_length(sample_results)
+    metrics["Novelty"] = compute_novelty_per_length(sample_results)
+    metrics["Diversity"] = compute_diversity_per_length(sample_results)
 
-    print("\nDesignability per length:")
-    for length_dir, frac in designability_frac_per_length[0].items():
-        std_val = designability_frac_per_length[1][length_dir]
-        if frac is not None and std_val is not None:
-            print(f"  {length_dir}: {frac:.3f} ± {std_val:.3f}")
-        elif frac is not None:
-            print(f"  {length_dir}: {frac:.3f}")
+    # Compute means and std
+    for metric_name, metrics_per_length in metrics.items():
+        if metric_name.lower() != "diversity":
+            results[metric_name] = compute_mean_std(metrics_per_length)
         else:
-            print(f"  {length_dir}: None")
+            results[metric_name] = (compute_mean_std(metrics_per_length)[0], None)
 
-    print("\nscRMSD per length:")
-    for length_dir, mean_val in scrmsd_per_length[0].items():
-        std_val = scrmsd_per_length[1][length_dir]
-        if mean_val is not None and std_val is not None:
-            print(f"  {length_dir}: {mean_val:.3f} ± {std_val:.3f}")
+    # Print metrics
+    for metric_name, mean_std in results.items():
+        mean = mean_std[0]
+        std = mean_std[1]
+        if mean is not None and std is not None:
+            print(f"    {metric_name}: {mean:.3f} ± {std:.3f}")
+        elif mean is not None:
+            print(f"    {metric_name}: {mean:.3f}")
         else:
-            print(f"  {length_dir}: None")
-
-    print("\nNovelty per length:")
-    for length_dir, frac in novelty_per_length[0].items():
-        std_val = novelty_per_length[1][length_dir]
-        if frac is not None and std_val is not None:
-            print(f"  {length_dir}: {frac:.3f} ± {std_val:.3f}")
-        elif frac is not None:
-            print(f"  {length_dir}: {frac:.3f}")
-        else:
-            print(f"  {length_dir}: None")
-
-    print("\nDiversity per length:")
-    for length_dir, mean_val in diversity_per_length.items():
-        if mean_val is not None:
-            print(f"  {length_dir}: {mean_val:.3f}")
-        else:
-            print(f"  {length_dir}: None")
+            print(f"    {metric_name}: None")
