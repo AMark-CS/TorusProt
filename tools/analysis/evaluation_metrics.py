@@ -217,7 +217,7 @@ def compute_mean_std(metric: dict):
 
 
 if __name__ == "__main__":
-    results_dir = "results/ff2_mace_200k"
+    results_dir = "results/ff2_mace_185k"
     sample_results = collect_sample_results(results_dir)
 
     metrics = {}
@@ -237,6 +237,7 @@ if __name__ == "__main__":
             results[metric_name] = (compute_mean_std(metrics_per_length)[0], None)
 
     # Print metrics
+    print(f"The results of the folder {results_dir} have been evaluated:")
     for metric_name, mean_std in results.items():
         mean = mean_std[0]
         std = mean_std[1]
