@@ -1,6 +1,6 @@
 <div align="center">
 
-# SE(3)-Stochastic Flow Matching for Protein Backbone Generation with SE(3)-equivariant self-conditioning.
+# Learning and Modifying SE(3) Flow Matching for Protein Generation
 
 </div>
 
@@ -51,4 +51,4 @@ I experimented with FoldFlow-2 model without any RL finetuning part. That means 
 
 ### Aknowledgments
 
-I'd like to thank the authors of [FoldFlow](https://github.com/DreamFold/FoldFlow) and [FrameDiff] papers and codebases for their work!
+I'd like to thank the authors of [FoldFlow](https://github.com/DreamFold/FoldFlow) and [FrameDiff](https://github.com/jasonkyuyim/se3_diffusion) papers and codebases for their work!
