@@ -1,18 +1,17 @@
 <div align="center">
 
-# SE(3)-Stochastic Flow Matching for Protein Backbone Generation
-
-[![FF-1 Preprint](http://img.shields.io/badge/paper-arxiv.2310.02391-B31B1B.svg)](https://arxiv.org/abs/2310.02391)
-[![FF-2 Preprint](http://img.shields.io/badge/paper-arxiv.2405.20313-B31B1B.svg)](https://arxiv.org/abs/2405.20313)
-[![pytorch](https://img.shields.io/badge/PyTorch_1.13+-ee4c2c?logo=pytorch&logoColor=white)](https://pytorch.org/get-started/locally/)
+# SE(3)-Stochastic Flow Matching for Protein Backbone Generation with SE(3)-equivariant self-conditioning.
 
 </div>
 
-**FoldFlow** models are [flow matching](https://github.com/atong01/conditional-flow-matching) generative models for protein design. FoldFlow models work by generating protein structures as represented on the $SE(3)^N_0$ manifold. In FoldFlow-2, we introduce a new sequence condition structure model, achieving SOTA results on designability and diversity. FF-2 is based on our prior work, which introduced the first flow matching model for protein design. For more information, see our publication presented at ICLR 2024 [arXiv](https://arxiv.org/abs/2310.02391) and NeurIPS 2024 [arXiv](https://arxiv.org/abs/2405.203131).
+This code is a fork of the original [FoldFlow repository](https://github.com/DreamFold/FoldFlow), building upon their prior work which introduced the first flow matching model for protein backbone generation. **FoldFlow** models are [flow matching](https://github.com/atong01/conditional-flow-matching) generative models for protein design. FoldFlow models work by generating protein structures as represented on the $SE(3)^N_0$ manifold. 
 
-This code heavily relies on and builds off of the [FrameDiff](https://github.com/jasonkyuyim/se3_diffusion) code. We thank the authors of that work for their efforts.
+The repo serves as a learning step towards my transition to the bio ML field. The months of diving into the code, modifying it and trying to improve the baseline model have taught me new valuable concepts and ideas in the field of the modern protein discovery. My idea was to enhance the original implementation of the FoldFlow-2 architecture with a $SE(3)$-equivariant **self-conditioned** GNN encoder based on the [MACE](https://arxiv.org/abs/2206.07697) model. 
 
-![foldflow](media/foldflow-sfm_protein.gif)
+**You can find all the information about my learning adventure in [TODO] post that sheds light upon the theory and practical implementation of $SE(3)$ manifold flow matching for protein backbone generation augmented with an additional $SE(3)$-equivariant GNN encoder.**
+
+<div>
+
 
 # Installation
 To reproduce our results or train your own models you can install our codebase and its dependencies directly from this repository. 

@@ -127,8 +127,8 @@ class SO3FM:
         rot_0 = rearrange(rot_0, "t n c d -> (t n) c d", c=3, d=3).double()
         rot_t = rearrange(rot_t, "t n c d -> (t n) c d", c=3, d=3).double()
 
-        # Move rot_t to rot_0, multiplying it by the inverse of rot_0 (that is equivalent to rot_t - rot_0 on SO(3))
-        # which is the relative rotation between the rot_0 and rot_t
+        # Get a relative rotation between rot_t to rot_0, multiplying it by the inverse of rot_0 (that is equivalent to rot_t - rot_0 on SO(3))
+        # This rotation starts at the identity element.
         rot_t_minus_0 = rot_0.transpose(-1, -2) @ rot_t
 
         if self.inference_scaling < 0:
