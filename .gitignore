@@ -1,6 +1,4 @@
-# Other
 mmCIF/
-ds_cache/
 .vscode/
 ckpt/
 multirun/
@@ -176,7 +174,6 @@ outputs/
 
 #PDB processed dataset
 data/processed_pdb/
-data/processed_pdb_384/
 data/processed_pdb_openfold/
 
 #PDBBind dataset
@@ -197,6 +194,29 @@ wandb/
 !runner/config/wandb/
 results/
 
+# Additional data and result directories
+eval_outputs/
+ckpt_dir/
+cache/
+raw_data/
+hub/
+
+# Large model and data files
+*.pkl
+*.h5
+*.hdf5
+*.npz
+*.tar.gz
+*.zip
+
+# Temporary and cache files
+*.tmp
+*.temp
+.cache/
+__tmp__/
+
+# Conda environment files (optional, uncomment if needed)
+# environment.yaml
 
 # keep track of the results example
 !results_example/

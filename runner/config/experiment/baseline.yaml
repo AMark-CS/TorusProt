@@ -16,8 +16,8 @@ num_epoch: 500
 learning_rate: 0.0001
 max_squared_res: 500000
 prefetch_factor: 100
-use_gpu: False
-num_gpus: 0
+use_gpu: True
+num_gpus: 1
 sample_mode: cluster_time_batch
 
 

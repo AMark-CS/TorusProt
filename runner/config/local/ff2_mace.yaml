@@ -4,17 +4,16 @@
 # for the paths for the datasets, the ckpt, wandb, etc.
 
 data:
-  csv_path: ./data/metadata_all.csv
-  cluster_path: ./data/clusters-by-entity-30.txt # or any cluster file
+  csv_path: /storage2/hechuan/code/FoldFlow-0.2.0/data/metadata_one.csv
+  cluster_path: /storage2/hechuan/code/FoldFlow-0.2.0/data/clusters-by-entity-30.txt # or any cluster file
   filtering:
     max_len: 300
-    min_len: 200
   min_t: 0.01
-  cache_full_dataset: True  # Cache both to disk (LMDB) and in memory.
-  cache_dataset_in_memory: True # If True load from mem. If False, load from disk (LMDB).
+  cache_full_dataset: False  # Cache both to disk (LMDB) and in memory.
+  cache_dataset_in_memory: False # If True load from mem. If False, load from disk (LMDB).
   cache_path: ./ds_cache/  # Where to save the LMDB cache.
-  samples_per_eval_length: 4
-  num_eval_lengths: 10
+  # samples_per_eval_length: 4
+  # num_eval_lengths: 10
 
 model:
   mace_encoder:
@@ -40,16 +39,16 @@ experiment:
 
   # Training arguments
   log_freq: 50
-  batch_size: 256
+  batch_size: 1
   eval_batch_size: ${data.samples_per_eval_length}
-  num_loader_workers: 48
+  num_loader_workers: 2
   torch_num_threads: 48
   num_epoch: 100
   learning_rate: 0.0001
   max_squared_res: 1000000
-  prefetch_factor: 100
+  prefetch_factor: 2
   use_gpu: True
-  num_gpus: 2
+  num_gpus: 1
   sample_mode: cluster_time_batch
 
   # How many steps to checkpoint between.

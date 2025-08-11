@@ -1,0 +1,24 @@
+# @package _global_
+
+# Local configuration for torsion flow experiments
+local:
+  # Output directories
+  output_dir: "./outputs/torsion_flow"
+  log_dir: "./logs/torsion_flow"
+  
+  # Environment
+  conda_env: "foldflow-env"
+  
+  # Hardware specific
+  device: "cuda"
+  
+  # Debugging
+  debug:
+    enabled: false
+    fast_dev_run: false           # Run single batch for testing
+    check_gradients: false        # Check for gradient issues
+    profile_memory: false         # Profile memory usage
+    
+  # Paths (adjust based on your setup)
+  data_root: "/storage2/hechuan/code/FoldFlow-0.2.0/data"
+  cache_root: "./cache"

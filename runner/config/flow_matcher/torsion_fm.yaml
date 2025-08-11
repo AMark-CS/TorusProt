@@ -1,0 +1,23 @@
+# @package _global_
+
+# Torsion angle flow matching configuration
+flow_matcher:
+  type: "mixed_torus_euclidean"
+  
+  # Noise levels
+  torus_sigma: 0.1               # Noise for dihedral angles on torus
+  euclidean_sigma: 0.2           # Noise for bond angles/lengths
+  
+  # Integration
+  num_sampling_steps: 100        # Number of steps for generation
+  integration_method: "euler"    # Integration method
+  
+  # Loss weights
+  torus_weight: 1.0              # Weight for dihedral angle loss
+  bond_angle_weight: 1.0         # Weight for bond angle loss  
+  bond_length_weight: 0.1        # Lower weight for bond lengths
+  
+  # NERF reconstruction
+  use_standard_lengths: true     # Use standard bond lengths
+  use_standard_angles: true      # Use standard bond angles
+  center_coords: true            # Center reconstructed coordinates

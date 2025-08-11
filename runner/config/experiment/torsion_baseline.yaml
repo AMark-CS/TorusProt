@@ -1,0 +1,47 @@
+# @package _global_
+
+# Torsion flow experiment configuration
+experiment:
+  name: torsion_flow_baseline
+  run_id: null
+  use_wandb: true
+  wandb_project: "foldflow-torsion"
+  
+  # Training hyperparameters
+  batch_size: 4                    # Small batch size due to memory constraints
+  eval_batch_size: 2               # Even smaller for evaluation
+  num_epoch: 200
+  learning_rate: 1e-4
+  weight_decay: 1e-4
+  
+  # Optimizer
+  optimizer: "adamw"
+  scheduler: "cosine"
+  warmup_steps: 1000
+  
+  # Logging and checkpointing
+  log_freq: 10
+  ckpt_freq: 20
+  ckpt_dir: "./ckpt_dir/torsion_flow"
+  
+  # Early stopping
+  patience: 20
+  
+  # Sampling
+  generate_samples: true
+  num_samples: 10
+  
+  # Hardware configuration
+  use_gpu: true
+  num_gpus: 1
+  mixed_precision: true          # Use automatic mixed precision
+  compile_model: false           # PyTorch 2.0 compilation
+  
+  # Evaluation
+  compute_rmsd: true
+  compute_gdt: true
+  compute_ramachandran: true
+  eval_freq: 10                  # Evaluate every N epochs
+  
+  # Reproducibility
+  seed: 42

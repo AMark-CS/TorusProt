@@ -1,6 +1,6 @@
 # CSV for path and metadata to training examples.
-csv_path: /mnt/shared_storage/processed_pdbs/metadata.csv
-cluster_path: ../../data/clusters-by-entity-30.txt
+csv_path: /storage2/hechuan/code/FoldFlow-0.2.0/data/metadata_one.csv
+cluster_path: /storage2/hechuan/code/FoldFlow-0.2.0/data/clusters-by-entity-30.txt
 filtering:
   max_len: 512
   min_len: 60

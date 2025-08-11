@@ -1,0 +1,27 @@
+# @package _global_
+
+# Torsion angle data configuration
+data:
+  representation: "torsion_angles"
+  
+  # Data paths
+  csv_path: /storage2/hechuan/code/FoldFlow-0.2.0/data/metadata_one.csv
+  cluster_path: /storage2/hechuan/code/FoldFlow-0.2.0/data/clusters-by-entity-30.txt
+  
+  # Length filtering (conservative for memory)
+  filtering:
+    max_len: 200                   # Reduced from 300 to save memory
+    min_len: 50                    # Minimum meaningful protein length
+  
+  # Caching
+  cache_full_dataset: false
+  cache_dataset_in_memory: false
+  cache_path: "./torsion_cache/"
+  
+  # Data loading
+  num_loader_workers: 2
+  prefetch_factor: 2
+  pin_memory: true
+  
+  # Augmentation (disabled for torsion angles)
+  use_augmentation: false

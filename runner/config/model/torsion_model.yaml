@@ -1,0 +1,27 @@
+# @package _global_
+
+# Torsion angle model configuration
+model:
+  type: "mixed_flow_matcher"
+  
+  # Torus flow (for dihedral angles)
+  torus_hidden_dim: 256
+  torus_layers: 6
+  torus_num_heads: 8
+  
+  # Euclidean flow (for bond angles/lengths)
+  euclidean_hidden_dim: 256
+  euclidean_layers: 4
+  euclidean_num_heads: 8
+  
+  # Shared attention parameters
+  dropout: 0.1
+  activation: "swish"
+  
+  # Embedding dimensions
+  time_embedding_dim: 128
+  aa_embedding_dim: 64
+  
+  # Model specific parameters
+  use_layer_norm: true
+  use_residual_connections: true

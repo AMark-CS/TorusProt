@@ -1,0 +1,13 @@
+# Torsion angle flow matching configuration for SE(3) Flow Matcher experiments.
+defaults:
+  - data: torsion_data
+  - flow_matcher: torsion_fm
+  - model: torsion_model
+  - experiment: torsion_baseline
+  - local: torsion_local
+  - wandb: default
+  - override hydra/launcher: joblib
+  - _self_
+
+start_time_string: "default"
+conda_env: foldflow-env
